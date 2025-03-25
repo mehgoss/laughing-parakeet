@@ -7,8 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1G-0INX6Sh71JGXK0Ve1ZT8BENMvngrPs
 """
 
-!pip install -q \
-bitmex matplotlib numpy pandas python-telegram-bot python-dotenv yfinance pyTelegramBotAPI
+#
 
 # -*- coding: utf-8 -*-
 import asyncio
