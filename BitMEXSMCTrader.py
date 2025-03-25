@@ -28,10 +28,19 @@ import pandas as pd
 from dotenv import load_dotenv
 import yfinance as yf
 from BitMEXAPI import BitMEXTestAPI
+
 # Load .env file
 load_dotenv()
+from TeleBotLog import configure_logging
 
 
+
+
+#Telegram creds
+TOKEN =  os.getenv("API_SECRET") 
+CHAT_ID =  os.getenv("API_SECRET") 
+
+logger = configure_logging(TOKEN, CHAT_ID)
 # Set the correct time zone
 utc_now = datetime.utcnow()
 sast = pytz.timezone('Africa/Johannesburg')
