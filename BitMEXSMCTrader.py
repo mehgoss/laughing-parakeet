@@ -16,7 +16,6 @@ import logging
 import os
 import threading
 import time
-import telebot
 import pytz
 from datetime import datetime, timedelta
 from queue import Queue
