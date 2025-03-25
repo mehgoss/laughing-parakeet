@@ -1,0 +1,99 @@
+# BitMEX Trading Strategy Backtesting Workflow
+name: BitMEX Strategy Backtest
+
+on:
+  # Manual trigger - use this to start a new session
+  workflow_dispatch:
+  
+  # Run on commits/pushes to main branch
+  push:
+    branches: [ "main" ]
+    
+  # Run on pull requests to main branch
+  pull_request:
+    branches: [ "main" ]
+  
+  # No schedule - we'll implement a self-scheduling mechanism
+
+permissions:
+  contents: read
+  actions: write  # Needed to check for running workflows
+
+concurrency:
+  group: trading-strategy
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}  # Cancel in-progress runs on push/PR
+
+jobs:
+  check-running:
+    runs-on: ubuntu-latest
+    outputs:
+      should-run: ${{ steps.check.outputs.should-run }}
+    steps:
+      - name: Check for running workflows
+        id: check
+        run: |
+          # Get list of running workflows (excluding this one)
+          WORKFLOW_ID=$(echo $GITHUB_WORKFLOW)
+          CURRENT_RUN_ID=$(echo $GITHUB_RUN_ID)
+          
+          # API call to get running workflows
+          RUNNING=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?status=in_progress&event=workflow_dispatch")
+          
+          # Count workflows (excluding this one)
+          COUNT=$(echo $RUNNING | jq ".workflow_runs | map(select(.id != $CURRENT_RUN_ID)) | length")
+          
+          if [ "$COUNT" -gt "0" ]; then
+            echo "Other workflows running. Skipping this run."
+            echo "should-run=false" >> $GITHUB_OUTPUT
+          else
+            echo "No other workflows running. Proceeding."
+            echo "should-run=true" >> $GITHUB_OUTPUT
+          fi
+
+  backtest:
+    needs: check-running
+    if: needs.check-running.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # Just under 6 hours (GitHub limit)
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Run trading backtest
+      env:
+        CHAT_ID: ${{ secrets.CHAT_ID }}
+        TOKEN: ${{ secrets.TOKEN }}
+        API_KEY: ${{ secrets.API_KEY }}
+        API_SECRET: ${{ secrets.API_SECRET }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        MAX_RUNTIME: 20400  # 5 hours 40 minutes in seconds
+        REQUIRED_BREAK: 1800  # 30 minutes break in seconds
+      run: |
+        python App.py
+        
+    - name: Schedule next run
+      # Only auto-schedule if this was triggered by workflow_dispatch, not by push or PR
+      if: success() && github.event_name == 'workflow_dispatch'
+      run: |
+        # Wait for required break
+        echo "Taking a 30-minute break before scheduling next run"
+        sleep 30  # Just a short pause before scheduling
+        
+        # Trigger a new workflow run after the break
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$(echo $GITHUB_WORKFLOW | cut -d'/' -f2)/dispatches \
+          -d '{"ref":"${{ github.ref }}"}'
