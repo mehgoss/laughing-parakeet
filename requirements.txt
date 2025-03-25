@@ -1,20 +1,20 @@
 # Telegram and Bot Libraries
 python-telegram-bot==20.7
-telebot==0.0.5
-telegram==0.0.1
+telebot
+telegram
 
 # Trading and Financial Libraries
-bitmex==0.4.0
-yfinance==0.2.36
+bitmex
+yfinance
 
 # Data Manipulation and Visualization
-matplotlib==3.8.3
-numpy==1.26.4
-pandas==2.2.1
+matplotlib
+numpy
+pandas
 
 # Utility Libraries
-python-dotenv==1.0.1
-pytz==2024.1
+python-dotenv
+pytz
 
 # Optional: Logging and Environment Support (already native to Python, but listed for completeness)
 # logging (native)
