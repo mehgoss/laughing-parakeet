@@ -17,8 +17,17 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 import yfinance as yf
+load_dotenv() 
+from TeleBotLog import configure_logging
 
 
+
+
+#Telegram creds
+TOKEN =  os.getenv("API_SECRET") 
+CHAT_ID =  os.getenv("API_SECRET") 
+
+logger = configure_logging(TOKEN, CHAT_ID)
 
 class BitMEXTestAPI:
     def __init__(self, api_key, api_secret, test=True, symbol='SOL-USD'):
