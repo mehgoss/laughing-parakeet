@@ -14,6 +14,7 @@ CHAT_ID =  os.getenv("API_SECRET")
 #Bitmex creds
 API_KEY =  os.getenv("API_SECRET") 
 API_SECRET= os.getenv("API_SECRET") 
+logger = configure_logging(TOKEN, CHAT_ID)
 
 
 def long_running_task():
@@ -63,5 +64,4 @@ def GitActionLoop():
     logger.info("Script finished")
 
 if __name__ == "__main__":
-    logger = configure_logging(TOKEN, CHAT_ID)
     GitActionLoop()
