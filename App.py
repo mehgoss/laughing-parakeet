@@ -1,6 +1,7 @@
 import time
 import logging
 import sys
+import os
 from BitMEXSMCTrader import  BitMEXLiveTrader
 from TeleBotLog import configure_logging
 
