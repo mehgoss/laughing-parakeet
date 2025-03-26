@@ -840,7 +840,7 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
 
     try:
         
-        print("Current time in SAST:", get_sast_now().strftime('%Y-%m-%d %H:%M:%S'))
+        print("Current time in SAST:", get_sast_time().strftime('%Y-%m-%d %H:%M:%S'))
         # Example log calls
         logger.info("BitmexSMCLiveTrader version 0.1 ")
         logger.info(f"Current time in SAST: {get_sast_time().strftime('%Y-%m-%d %H:%M:%S')}")
