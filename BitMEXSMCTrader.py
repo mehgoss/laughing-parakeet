@@ -198,7 +198,7 @@ class SMC:
 
                 if current_high < prev_low and i > last_low_idx + 1:
                     df.loc[df.index[i], 'bos_down'] = True
-                   # logger.info(f"Bearish BOS detected at index {df.iloc[i]['close']:.2f}, price: {current_high}")
+                   #logger.info(f"Bearish BOS detected at index {df.iloc[i]['close']:.2f}, price: {current_high}")
                     print(f"Bearish BOS detected at index {i}, price: {current_high}")
 
         # Identify Change of Character (CHoCH)
@@ -208,7 +208,7 @@ class SMC:
                 recent_lows = df.iloc[i-window:i]['low'].tolist()
                 if min(recent_lows[:-1]) < recent_lows[-1]:
                     df.loc[df.index[i], 'choch_up'] = True
-                    logger.info(f"Bullish CHoCH detected at index {df.iloc[i]['close']:2f},  price: {current_high}")
+                    #logger.info(f"Bullish CHoCH detected at index {df.iloc[i]['close']:.2f},  price: {current_high}")
                     print(f"Bullish CHoCH detected at index {i},  price: {current_high}")
 
             # Bearish CHoCH: After BOS down, creates lower high
@@ -216,7 +216,7 @@ class SMC:
                 recent_highs = df.iloc[i-window:i]['high'].tolist()
                 if max(recent_highs[:-1]) > recent_highs[-1]:
                     df.loc[df.index[i], 'choch_down'] = True
-                    logger.info(f"Bearish CHoCH detected at index {df.iloc[i]['close']:2f},  price: {current_high}")
+                    #logger.info(f"Bearish CHoCH detected at index {df.iloc[i]['close']:2f},  price: {current_high}")
                     print(f"Bearish CHoCH detected at index {i}")
         logger.info("End of Identifying market structure")
         return df
@@ -267,7 +267,7 @@ class SMC:
                         df.loc[df.index[i], 'bullish_fvg_high'] = fvg_high
                         df.loc[df.index[i], 'bullish_fvg_sl_index'] = i
 
-                        logger.info(f"Bullish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
+                        #logger.info(f"Bullish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
                         print(f"Bullish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
 
             # Bearish FVG: Previous candle's high < Current candle's low
@@ -291,7 +291,7 @@ class SMC:
                         df.loc[df.index[i], 'bearish_fvg_high'] = fvg_high
                         df.loc[df.index[i], 'bearish_fvg_sl_index'] = i
 
-                        logger.info(f"Bearish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
+                        #logger.info(f"Bearish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
                         print(f"Bearish FVG detected at index {df.iloc[i]['close']}, range: {fvg_low}-{fvg_high}")
         logger.info("End of Identifying Fair Value Gaps")
         return df
