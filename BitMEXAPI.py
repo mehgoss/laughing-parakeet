@@ -98,7 +98,7 @@ class BitMEXTestAPI:
                     "margin_balance": margin.get('marginBalance'),
                     "available_margin": margin.get('availableMargin'),
                     "unrealized_pnl": margin.get('unrealisedPnl'),
-                    "realized_pnl": margin.get('realisedPnl')
+                    "realized_pnl": margin.get('realisedPnl'), 
                     "usd" : wallet_balance_usd
                 },
                 "positions": [{
