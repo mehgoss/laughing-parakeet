@@ -227,14 +227,14 @@ class BitMEXTestAPI:
         :return: Order details or None if error
         """
         try:
-            logger.info(f"Opening test {side} position for {quantity} contracts")
+            logger.info(f"Opening test {side} position for {quantity} contracts for {self.symbol}")
 
             # Execute the order
             order = self.client.Order.Order_new(
                 symbol=self.symbol,
                 side=side,
                 orderQty=quantity,
-                ordType=order_type
+                #ordType=order_type
             ).result()[0]
 
             # Log order details
