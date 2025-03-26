@@ -23,7 +23,7 @@ def timed_job():
     
     try:
         iteration = 0
-        while time.time() - start_time < max_runtime
+        while time.time() - start_time < max_runtime:
             #Trader Bot Start
             BitMEXLiveTrader(API_KEY, API_SECRET)
             
