@@ -175,7 +175,7 @@ class BitMEXTestAPI:
 
             # Retrieve candle data
             candles = self.client.Trade.Trade_getBucketed(
-                symbol=self.symbol if '-' not in self.symbol else self.symbol.replace('-USD','USD')
+                symbol=self.symbol if '-' not in self.symbol else self.symbol.replace('-USD','USD'), 
                 binSize=base_timeframe,
                 count=adjusted_count,
                 reverse=True
