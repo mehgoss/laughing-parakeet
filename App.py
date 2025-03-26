@@ -3,7 +3,7 @@ import logging
 import sys
 import os  # Added missing import
 from BitMEXSMCTrader import BitMEXLiveTrader
-from TeleBotLog import configure_logging
+from TeleLogBot import configure_logging
 
 # Telegram creds
 TOKEN = os.getenv("TOKEN")
