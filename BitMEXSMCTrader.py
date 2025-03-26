@@ -89,7 +89,7 @@ class SMC:
             logger.info(f"Fetching {self.symbol} market data from BitMEX")
             print(f"Fetching {self.symbol} market data from BitMEX")
             data = self.api.get_candle(
-                symbol=self.symbol,
+                symbol=self.symbol.replace('-USD','USD')
                 timeframe=self.timeframe
             )
             df = pd.DataFrame(data)
