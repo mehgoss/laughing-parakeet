@@ -110,7 +110,7 @@ class SMC:
             logger.warning(f"Failed to get data from BitMEX API: {str(e)}. Falling back to yfinance.")
             print(f"Failed to get data from BitMEX API: {str(e)}. Falling back to yfinance.")
     
-            crypto_ticker = self.symbol if self.symbol.endswith('-USD') else f"{self.symbol}-USD"
+            crypto_ticker = self.symbol if self.symbol.endswith('USD') else f"{self.symbol}-USD"
             sast_now = get_sast_time()
             end_date = sast_now
             start_date = end_date - timedelta(days=2)
@@ -854,7 +854,7 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
             api_key=API_KEY,
             api_secret=API_SECRET,
             test=True,  # Use testnet
-            symbol="SOLUSD",  # Solana/USD
+            symbol="SOL-USD",  # Solana/USD
             timeframe="5m",  # 5m candles
             risk_per_trade=0.02  # 2% risk per trade
             )
