@@ -4,16 +4,10 @@ name: BitMEX Strategy Backtest
 on:
   # Manual trigger - use this to start a new session
   workflow_dispatch:
+  
+  # Scheduled trigger every 10 minutes
   schedule:
     - cron: '*/10 * * * *'  # Run every 10 minutes
-  
-  # Run on commits/pushes to main branch
-  push:
-    branches: [ "main" ]
-    
-  # Run on pull requests to main branch
-  pull_request:
-    branches: [ "main" ]
 
 permissions:
   contents: read
@@ -21,7 +15,7 @@ permissions:
 
 concurrency:
   group: trading-strategy
-  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   backtest:
@@ -52,3 +46,15 @@ jobs:
         MAX_RUNTIME: 300  # 5 minutes in seconds
       run: |
         python App.py
+
+    - name: Notify on Failure
+      if: failure()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.CHAT_ID }}
+        token: ${{ secrets.TOKEN }}
+        message: |
+          ❌ BitMEX Trading Strategy Backtest Failed
+          Repository: ${{ github.repository }}
+          Event: ${{ github.event_name }}
+          Ref: ${{ github.ref }}
