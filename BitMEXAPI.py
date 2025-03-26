@@ -42,7 +42,7 @@ class BitMEXTestAPI:
                 api_key=api_key,
                 api_secret=api_secret
             )
-            self.symbol = symbol  # Symbol parsed here
+            self.symbol =  symbol if '-' not in symbol else symbol.replace('-USD', 'USD')  # Symbol parsed here
 
             # Log initialization
             network_type = 'testnet' if test else 'mainnet'
@@ -74,7 +74,7 @@ class BitMEXTestAPI:
 
             # Fetch current BTC/USD price for conversion
             btc_price_data = self.client.Trade.Trade_getBucketed(
-                symbol="XBTUSD",
+                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD')",
                 binSize="1m",
                 count=1,
                 reverse=True
@@ -175,7 +175,7 @@ class BitMEXTestAPI:
 
             # Retrieve candle data
             candles = self.client.Trade.Trade_getBucketed(
-                symbol=self.symbol if '-' not in self.symbol else self.replace('-USD','USD')
+                symbol=self.symbol if '-' not in self.symbol else self.symbol.replace('-USD','USD')
                 binSize=base_timeframe,
                 count=adjusted_count,
                 reverse=True
@@ -231,7 +231,7 @@ class BitMEXTestAPI:
 
             # Execute the order
             order = self.client.Order.Order_new(
-                symbol=self.symbol,
+                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD') ,
                 side=side,
                 orderQty=quantity,
                 #ordType=order_type
@@ -280,7 +280,7 @@ class BitMEXTestAPI:
 
             # Place closing order
             order = self.client.Order.Order_new(
-                symbol=symbol,
+                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD'),
                 side=side,
                 orderQty=qty,
                 ordType="Market"
@@ -305,7 +305,7 @@ class BitMEXTestAPI:
         try:
             # Get current positions
             positions = self.client.Position.Position_get(
-                filter=json.dumps({"symbol": self.symbol})
+                filter=json.dumps({"symbol": self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD')})
             ).result()[0]
 
             if not positions:
