@@ -1,6 +1,4 @@
-
 # -*- coding: utf-8 -*-
-import asyncio
 import json
 import logging
 import os
@@ -8,26 +6,25 @@ import threading
 import time
 import pytz
 from datetime import datetime, timedelta
-from queue import Queue
 import sys
 import bitmex
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
-import pandas as pd
 from dotenv import load_dotenv
-import yfinance as yf
-load_dotenv() 
-from TeleBotLog import configure_logging
+from TeleLogBot import configure_logging
+import pandas as pd
 
+load_dotenv()
 
-
-
-#Telegram creds
-TOKEN =  os.getenv("API_SECRET") 
-CHAT_ID =  os.getenv("API_SECRET") 
+# Telegram credentials
+TOKEN = os.getenv("TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 logger = configure_logging(TOKEN, CHAT_ID)
+
+# Set the correct time zone
+utc_now = datetime.utcnow()
+sast = pytz.timezone('Africa/Johannesburg')
+sast_now = utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+
 
 class BitMEXTestAPI:
     def __init__(self, api_key, api_secret, test=True, symbol='SOL-USD'):
@@ -45,11 +42,11 @@ class BitMEXTestAPI:
                 api_key=api_key,
                 api_secret=api_secret
             )
-            self.symbol = symbol
+            self.symbol = symbol  # Symbol parsed here
 
             # Log initialization
             network_type = 'testnet' if test else 'mainnet'
-            logger.info(f"BitMEXTestAPI initialized for {symbol} on {network_type}")
+            logger.info(f"BitMEXAPI initialized for {symbol} on {network_type}")
             print(f"BitMEXTestAPI initialized for {symbol} on {network_type}")
 
         except Exception as e:
@@ -61,7 +58,7 @@ class BitMEXTestAPI:
         """
         Retrieve comprehensive account profile information
 
-        :return: Dictionary with user, balance, and position details
+        :return: Dictionary with user, balance, and position detail
         """
         try:
             # Get user information
@@ -74,6 +71,19 @@ class BitMEXTestAPI:
             positions = self.client.Position.Position_get(
                 filter=json.dumps({"symbol": self.symbol})
             ).result()[0]
+
+            # Fetch current BTC/USD price for conversion
+            btc_price_data = self.client.Trade.Trade_getBucketed(
+                symbol="XBTUSD",
+                binSize="1m",
+                count=1,
+                reverse=True
+            ).result()[0]
+            btc_usd_price = btc_price_data[0]['close'] if btc_price_data else 40000  # Fallback price
+
+            # Convert wallet balance from satoshis (1e8) to BTC and USD
+            wallet_balance_btc = margin.get('walletBalance') / 100000000
+            wallet_balance_usd = wallet_balance_btc * btc_usd_price
 
             # Format profile information
             profile_info = {
@@ -108,15 +118,15 @@ class BitMEXTestAPI:
             logger.info(f"Account: {profile_info['user']['username']}")
             print(f"Account: {profile_info['user']['username']}")
 
-            logger.info(f"Wallet Balance: {profile_info['balance']['wallet_balance'] / 100000000:.8f} XBT")
-            print(f"Wallet Balance: {profile_info['balance']['wallet_balance'] / 100000000:.8f} XBT")
+            logger.info(f"Wallet Balance: {wallet_balance_btc:.8f} BTC ({wallet_balance_usd:.2f} USD)")
+            print(f"Wallet Balance: {wallet_balance_btc:.8f} BTC ({wallet_balance_usd:.2f} USD)")
 
-            logger.info(f"Available Margin: {profile_info['balance']['available_margin'] / 100000000:.8f} XBT")
-            print(f"Available Margin: {profile_info['balance']['available_margin'] / 100000000:.8f} XBT")
+            logger.info(f"Available Margin: {profile_info['balance']['available_margin'] / 100000000:.8f} BTC")
+            print(f"Available Margin: {profile_info['balance']['available_margin'] / 100000000:.8f} BTC")
 
             if profile_info['positions']:
                 for pos in profile_info['positions']:
-                    logger.info(f"Position: {pos['symbol']} | Qty: {pos['current_qty']} | Entry: {pos['avg_entry_price']}")
+                    logger.info(f"📈🔵🔴Position: {pos['symbol']} | Qty: {pos['current_qty']} | Entry: {pos['avg_entry_price']}")
                     print(f"Position: {pos['symbol']} | Qty: {pos['current_qty']} | Entry: {pos['avg_entry_price']}")
             else:
                 logger.info("No open positions")
@@ -135,31 +145,42 @@ class BitMEXTestAPI:
 
         :param timeframe: Candle timeframe (default '1m' for 1 minute)
         :param count: Number of candles to retrieve (default 100)
-        :return: List of candle dictionaries or None if error occurs
+        :return: DataFrame with candle data or None if error occurs
         """
         try:
-            # Mapping of timeframe to BitMEX binSize parameter
+            # Extended timeframe mapping
             timeframe_map = {
-                '1m': '1',
-                '5m': '5',
+                '1m': '1m',
+                '2m': '1m',
+                '5m': '5m',
+                '10m': '5m',
+                '15m': '5m',
+                '30m': '5m',
                 '1h': '1h',
+                '4h': '1h',
                 '1d': '1d'
             }
 
-            # Validate and get the correct bin size
-            bin_size = timeframe_map.get(timeframe)
-            if not bin_size:
+            if timeframe not in timeframe_map:
                 raise ValueError(f"Invalid timeframe. Supported: {', '.join(timeframe_map.keys())}")
+
+            base_timeframe = timeframe_map[timeframe]
+            multiplier = {
+                '2m': 2, '10m': 2, '15m': 3, '30m': 6, '4h': 4
+            }.get(timeframe, 1)
+
+            # Adjust count for aggregation
+            adjusted_count = count * multiplier if multiplier > 1 else count
 
             # Retrieve candle data
             candles = self.client.Trade.Trade_getBucketed(
                 symbol=self.symbol,
-                binSize=bin_size,
-                count=count,
-                reverse=True  # Most recent candles first
+                binSize=base_timeframe,
+                count=adjusted_count,
+                reverse=True
             ).result()[0]
 
-            # Format candle data
+            # Format initial candle data
             formatted_candles = [{
                 'timestamp': candle['timestamp'],
                 'open': candle['open'],
@@ -169,11 +190,26 @@ class BitMEXTestAPI:
                 'volume': candle['volume']
             } for candle in candles]
 
-            # Log retrieval success
-            logger.info(f"Retrieved {len(formatted_candles)} {timeframe} candles for {self.symbol}")
-            print(f"Retrieved {len(formatted_candles)} {timeframe} candles for {self.symbol}")
+            # Convert to DataFrame
+            df = pd.DataFrame(formatted_candles)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-            return formatted_candles
+            # Aggregate if needed
+            if multiplier > 1:
+                df = df.sort_values('timestamp')
+                df = df.resample(f'{timeframe}', on='timestamp').agg({
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum'
+                }).dropna().tail(count)
+
+            # Log retrieval success
+            logger.info(f"Retrieved {len(df)} {timeframe} candles for {self.symbol}")
+            print(f"Retrieved {len(df)} {timeframe} candles for {self.symbol}")
+
+            return df
 
         except Exception as e:
             logger.error(f"Error retrieving candle data: {str(e)}")
@@ -218,6 +254,47 @@ class BitMEXTestAPI:
             print(f"Error opening test position: {str(e)}")
             return None
 
+    def _close_position(self, position):
+        """
+        Close a single position
+
+        :param position: Position dictionary from Position_get
+        :return: Order result or None if error
+        """
+        try:
+            symbol = position['symbol']
+            current_qty = position['currentQty']
+
+            if current_qty == 0:
+                logger.info(f"No open position for {symbol}")
+                print(f"No open position for {symbol}")
+                return None
+
+            # Determine closing side
+            side = "Sell" if current_qty > 0 else "Buy"
+            qty = abs(current_qty)
+
+            logger.info(f"Closing position: {symbol} | {current_qty} contracts | Side: {side} | Qty: {qty}")
+            print(f"Closing position: {symbol} | {current_qty} contracts | Side: {side} | Qty: {qty}")
+
+            # Place closing order
+            order = self.client.Order.Order_new(
+                symbol=symbol,
+                side=side,
+                orderQty=qty,
+                ordType="Market"
+            ).result()[0]
+
+            logger.info(f"🔴📈⁉️❗Position closed: {order['ordStatus']} | OrderID: {order['orderID']}")
+            print(f"Position closed: {order['ordStatus']} | OrderID: {order['orderID']}")
+
+            return order
+
+        except Exception as e:
+            logger.error(f"Error closing position {position['symbol']}: {str(e)}")
+            print(f"Error closing position {position['symbol']}: {str(e)}")
+            return None
+
     def close_all_positions(self):
         """
         Close all open positions for the current symbol
@@ -237,31 +314,7 @@ class BitMEXTestAPI:
 
             # Close each position
             for position in positions:
-                symbol = position['symbol']
-                current_qty = position['currentQty']
-
-                if current_qty == 0:
-                    logger.info(f"No open position for {symbol}")
-                    print(f"No open position for {symbol}")
-                    continue
-
-                # Determine closing side
-                side = "Sell" if current_qty > 0 else "Buy"
-                qty = abs(current_qty)
-
-                logger.info(f"Closing position: {symbol} | {current_qty} contracts | Side: {side} | Qty: {qty}")
-                print(f"Closing position: {symbol} | {current_qty} contracts | Side: {side} | Qty: {qty}")
-
-                # Place closing order
-                order = self.client.Order.Order_new(
-                    symbol=symbol,
-                    side=side,
-                    orderQty=qty,
-                    ordType="Market"
-                ).result()[0]
-
-                logger.info(f"Position closed: {order['ordStatus']} | OrderID: {order['orderID']}")
-                print(f"Position closed: {order['ordStatus']} | OrderID: {order['orderID']}")
+                self._close_position(position)
 
             # Wait for orders to settle
             time.sleep(2)
@@ -290,8 +343,8 @@ class BitMEXTestAPI:
             self.get_profile_info()
 
             # Open long position
-            logger.info("=== OPENING LONG POSITION ===")
-            print("=== OPENING LONG POSITION ===")
+            logger.info("=== OPENING LONG POSITION(BUY)🔵  ===")
+            print("=== OPENING LONG POSITION (BUY)🔵 ===")
             self.open_test_position(side="Buy", quantity=1)
 
             # Wait and check profile
@@ -302,8 +355,8 @@ class BitMEXTestAPI:
             self.get_profile_info()
 
             # Open short position
-            logger.info("=== OPENING SHORT POSITION ===")
-            print("=== OPENING SHORT POSITION ===")
+            logger.info("=== OPENING SHORT POSITION(SELL)🔴  ===")
+            print("=== OPENING SHORT POSITION(SELL)🔴 ===")
             self.open_test_position(side="Sell", quantity=1)
 
             # Wait and check profile
@@ -329,3 +382,10 @@ class BitMEXTestAPI:
             logger.error(f"Error in test sequence: {str(e)}")
             print(f"Error in test sequence: {str(e)}")
             return None
+
+# Example usage (optional, for testing):
+if __name__ == "__main__":
+    api_key = os.getenv("BITMEX_API_KEY")
+    api_secret = os.getenv("BITMEX_API_SECRET")
+    api = BitMEXTestAPI(api_key, api_secret, test=True, symbol="SOL-USD")
+    api.run_test_sequence()

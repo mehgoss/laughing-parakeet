@@ -28,23 +28,23 @@ import pandas as pd
 from dotenv import load_dotenv
 import yfinance as yf
 from BitMEXAPI import BitMEXTestAPI
+from TeleLogBot import configure_logging
+
 
 # Load .env file
 load_dotenv()
-from TeleBotLog import configure_logging
-
-
-
 
 #Telegram creds
-TOKEN =  os.getenv("API_SECRET") 
-CHAT_ID =  os.getenv("API_SECRET") 
+TOKEN =  os.getenv("TOKEN") 
+CHAT_ID =  os.getenv("CHAT_ID") 
 
 logger = configure_logging(TOKEN, CHAT_ID)
-# Set the correct time zone
-utc_now = datetime.utcnow()
-sast = pytz.timezone('Africa/Johannesburg')
-sast_now = utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+
+def get_sast_time():
+    utc_now = datetime.utcnow()
+    sast = pytz.timezone('Africa/Johannesburg')
+    return utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+    
 
 class SMC:
     def __init__(self, api_key="", api_secret="", test=True, symbol="SOL-USD",
@@ -83,21 +83,19 @@ class SMC:
         logger.info(f"BitMEXLiveTrader initialized for {symbol} on {timeframe} timeframe")
     def get_market_data(self):
         """
-        Fetch market data from BitMEX API or fallback to yfinance
+        Fetch market data from BitMEX API or fallback to yfinance.
         """
         try:
+            logger.info(f"Fetching {self.symbol} market data from BitMEX")
             print(f"Fetching {self.symbol} market data from BitMEX")
             data = self.api.get_candle(
                 symbol=self.symbol,
                 timeframe=self.timeframe
             )
             df = pd.DataFrame(data)
-            print(f"Retrieved {len(df)} candles from BitMEX")
+            logger.info(f"Retrieved {len(df)} candles from BitMEX")
             self.df = df
-            # Normalize column names to lowercase
             self.df.columns = [col.lower() for col in self.df.columns]
-            print(f"BitMEX columns: {self.df.columns.tolist()}")
-            # Add columns for SMC analysis
             self.df['higher_high'] = False
             self.df['lower_low'] = False
             self.df['bos_up'] = False
@@ -107,60 +105,48 @@ class SMC:
             self.df['bullish_fvg'] = False
             self.df['bearish_fvg'] = False
             return df
-
+    
         except Exception as e:
+            logger.warning(f"Failed to get data from BitMEX API: {str(e)}. Falling back to yfinance.")
             print(f"Failed to get data from BitMEX API: {str(e)}. Falling back to yfinance.")
-
-            # Fix ticker symbol for yfinance
-            crypto_ticker = self.symbol.replace('USD', '-USD')  # Ensure SOLUSD format
-            if not crypto_ticker.endswith('USD'):
-                crypto_ticker += 'USD'  # Ensure it ends with USD
-
+    
+            crypto_ticker = self.symbol if self.symbol.endswith('USD') else f"{self.symbol}-USD"
             sast_now = get_sast_time()
             end_date = sast_now
-            start_date = end_date - timedelta(days=7)
-
-            data = yf.download(
-                crypto_ticker,
-                start=start_date.strftime('%Y-%m-%d'),
-                end=end_date.strftime('%Y-%m-%d'),
-                interval=self.timeframe
-            )
-
-            print(f"Retrieved {len(data)} candles from yfinance")
-            self.df = data
-            if not data.empty:
-                # Handle potential MultiIndex from yfinance
-                if isinstance(self.df.columns, pd.MultiIndex):
-                    print(f"MultiIndex detected: {self.df.columns.tolist()}")
-                    # Flatten MultiIndex to just the second level (e.g., 'open', 'high', etc.)
-                    self.df.columns = [col[0].lower() if isinstance(col, tuple) else col.lower()
-                                     for col in self.df.columns]
+            start_date = end_date - timedelta(days=2)
+    
+            try:
+                data = yf.download(
+                    crypto_ticker,
+                    start=start_date.strftime('%Y-%m-%d'),
+                    end=end_date.strftime('%Y-%m-%d'),
+                    interval=self.timeframe
+                )
+                logger.info(f"Retrieved {len(data)} candles from yfinance")
+                self.df = data
+                if not data.empty:
+                    if isinstance(self.df.columns, pd.MultiIndex):
+                        self.df.columns = [col[1].lower() if col[1] else col[0].lower() for col in self.df.columns]
+                    else:
+                        self.df.columns = [col.lower() for col in self.df.columns]
+                    required_columns = ['open', 'high', 'low', 'close']
+                    if all(col in self.df.columns for col in required_columns):
+                        self.df['higher_high'] = False
+                        self.df['lower_low'] = False
+                        self.df['bos_up'] = False
+                        self.df['bos_down'] = False
+                        self.df['choch_up'] = False
+                        self.df['choch_down'] = False
+                        self.df['bullish_fvg'] = False
+                        self.df['bearish_fvg'] = False
+                    else:
+                        logger.warning("Missing required columns in yfinance data")
                 else:
-                    # Simple Index, just convert to lowercase
-                    self.df.columns = [col.lower() for col in self.df.columns]
-
-                print(f"Normalized yfinance columns: {self.df.columns.tolist()}")
-
-                # Verify required columns exist
-                required_columns = ['open', 'high', 'low', 'close']
-                missing_columns = [col for col in required_columns if col not in self.df.columns]
-                if missing_columns:
-                    print(f"Warning: Missing required columns: {missing_columns}")
-                    return self.df  # Return early if critical columns are missing
-
-                # Add columns for SMC analysis
-                self.df['higher_high'] = False
-                self.df['lower_low'] = False
-                self.df['bos_up'] = False
-                self.df['bos_down'] = False
-                self.df['choch_up'] = False
-                self.df['choch_down'] = False
-                self.df['bullish_fvg'] = False
-                self.df['bearish_fvg'] = False
-            else:
-                print("No data retrieved from yfinance")
-            return data
+                    logger.warning("No data retrieved from yfinance")
+                return data
+            except Exception as e:
+                logger.error(f"yfinance fallback failed: {str(e)}")
+                return pd.DataFrame()  # Return empty DataFrame on failure
     def identify_structure(self):
         """Identify market structure including highs, lows, BOS and CHoCH"""
         logger.info("Identifying market structure")
@@ -202,7 +188,7 @@ class SMC:
 
                 if current_low > prev_high and i > last_high_idx + 1:
                     df.loc[df.index[i], 'bos_up'] = True
-                    #logger.info(f"Bullish BOS detected at index {i}, price: {current_low}")
+                    #logger.info(f"Bullish BOS detected at index {df.iloc[i]['close']:.2f}, price: {current_low}")
                     print(f"Bullish BOS detected at index {i}, price: {current_low}")
 
             # BOS Down: Price breaks below recent structure low
@@ -212,7 +198,7 @@ class SMC:
 
                 if current_high < prev_low and i > last_low_idx + 1:
                     df.loc[df.index[i], 'bos_down'] = True
-                   # logger.info(f"Bearish BOS detected at index {i}, price: {current_high}")
+                   # logger.info(f"Bearish BOS detected at index {df.iloc[i]['close']:.2f}, price: {current_high}")
                     print(f"Bearish BOS detected at index {i}, price: {current_high}")
 
         # Identify Change of Character (CHoCH)
@@ -222,7 +208,7 @@ class SMC:
                 recent_lows = df.iloc[i-window:i]['low'].tolist()
                 if min(recent_lows[:-1]) < recent_lows[-1]:
                     df.loc[df.index[i], 'choch_up'] = True
-                    #logger.info(f"Bullish CHoCH detected at index {i},  price: {current_high}")
+                    logger.info(f"Bullish CHoCH detected at index {df.iloc[i]['close']:2f},  price: {current_high}")
                     print(f"Bullish CHoCH detected at index {i},  price: {current_high}")
 
             # Bearish CHoCH: After BOS down, creates lower high
@@ -230,7 +216,7 @@ class SMC:
                 recent_highs = df.iloc[i-window:i]['high'].tolist()
                 if max(recent_highs[:-1]) > recent_highs[-1]:
                     df.loc[df.index[i], 'choch_down'] = True
-                    #logger.info(f"Bearish CHoCH detected at index {i},  price: {current_high}")
+                    logger.info(f"Bearish CHoCH detected at index {df.iloc[i]['close']:2f},  price: {current_high}")
                     print(f"Bearish CHoCH detected at index {i}")
         logger.info("End of Identifying market structure")
         return df
@@ -281,7 +267,7 @@ class SMC:
                         df.loc[df.index[i], 'bullish_fvg_high'] = fvg_high
                         df.loc[df.index[i], 'bullish_fvg_sl_index'] = i
 
-                        #logger.info(f"Bullish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
+                        logger.info(f"Bullish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
                         print(f"Bullish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
 
             # Bearish FVG: Previous candle's high < Current candle's low
@@ -305,8 +291,8 @@ class SMC:
                         df.loc[df.index[i], 'bearish_fvg_high'] = fvg_high
                         df.loc[df.index[i], 'bearish_fvg_sl_index'] = i
 
-                        #logger.info(f"Bearish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
-                        print(f"Bearish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
+                        logger.info(f"Bearish FVG detected at index {df.iloc[i]['close']:.2f}, range: {fvg_low}-{fvg_high}")
+                        print(f"Bearish FVG detected at index {df.iloc[i]['close']}, range: {fvg_low}-{fvg_high}")
         logger.info("End of Identifying Fair Value Gaps")
         return df
 
@@ -316,6 +302,9 @@ class SMC:
         df = self.df
 
         # Loop through all previous candles
+        #check if curent candle is on unmitigated and is ohkay to wick out of fvg but dont close above or below the fvg
+        # 
+        
         for i in range(current_idx):
             # Check if the candle had a bullish FVG
             if df.iloc[i].get('bullish_fvg', False) and pd.notna(df.iloc[i].get('bullish_fvg_low')):
@@ -327,7 +316,7 @@ class SMC:
                     if df.iloc[j]['low'] <= fvg_high and df.iloc[j]['high'] >= fvg_low:
                         # FVG has been mitigated
                         df.loc[df.index[i], 'bullish_fvg_mitigated'] = True
-                        #logger.info(f"Bullish FVG at index {i} has been mitigated at index {j}")
+                        #logger.info(f"Bullish FVG at index {df.iloc[i]['close']:.2f} has been mitigated at index {df.iloc[j]['close']:.2f}")
                         print(f"Bullish FVG at index {i} has been mitigated at index {j}")
                         break
 
@@ -341,146 +330,161 @@ class SMC:
                     if df.iloc[j]['low'] <= fvg_high and df.iloc[j]['high'] >= fvg_low:
                         # FVG has been mitigated
                         df.loc[df.index[i], 'bearish_fvg_mitigated'] = True
-                        #logger.info(f"Bearish FVG at index {i} has been mitigated at index {j}")
-                        print(f"Bearish FVG at index {i} has been mitigated at index {j}")
+                        #logger.info(f"Bearish FVG at index {df.iloc[i]['close']: 2f} has been mitigated at index {df.iloc[j]['close']}:.2f")
+                        print(f"Bearish FVG at index {df.iloc[i]['close']:.2f} has been mitigated at index {df.iloc[j]['close']:2f}")
                         break
 
         return df
-
+            
     def execute_trades(self):
-        """Execute trades based on SMC signals"""
-        logger.info("Starting trade execution backtesting")
-        print("Starting trade execution backtesting")
+        """
+        Execute trades based on SMC signals for live trading.
+        - Analyzes the last 4 hours and the current candle for valid entries.
+        - Uses unmitigated FVGs for trade setups.
+        - Updates balance dynamically and supports one trade at a time.
+        - Returns early if no signal is detected when not in a trade.
+        """
+        logger.info("Starting live trade execution")
+        print("Starting live trade execution")
         df = self.df
-
-        # Iterate through each candle for backtesting
-        for i in range(5, len(df)):
-            current_price = df.iloc[i]['close']
-
-            # Check if we're in a trade
-            if self.in_trade:
-                # Check if stop loss hit
-                if (self.trade_type == 'long' and df.iloc[i]['low'] <= self.stop_loss) or \
-                   (self.trade_type == 'short' and df.iloc[i]['high'] >= self.stop_loss):
-                    #
-
-                    # Stop loss hit
-                     self.execute_signal({
-                     'price': self.take_profit,  # Use the take_profit price as the exit price
-                     'take_profit': self.take_profit,
-                     'action': "exit",
-                     'reason': 'takeprofit',
-                       })
-
-                     #self.execute_signal(signal)
-                     logger.info("Stop loss hit ❎❎❎")
-
-
-                # Check if take profit hit
-                elif (self.trade_type == 'long' and df.iloc[i]['high'] >= self.take_profit) or \
-                     (self.trade_type == 'short' and df.iloc[i]['low'] <= self.take_profit):
-                    # Take profit hit
+    
+        # Ensure we have enough data (at least 4 hours worth)
+        candles_per_hour = 4 if self.timeframe == "15m" else 1 if self.timeframe == "5m" else 1
+        min_candles = candles_per_hour * 4  # 4 hours of data
+        if len(df) < min_candles:
+            logger.warning(f"Not enough data: {len(df)} candles available, need at least {min_candles}")
+            print(f"Not enough data: {len(df)} candles available, need at least {min_candles}")
+            return [], self.equity_curve
+    
+        # Get the current candle (latest) and the last 4 hours of data
+        current_candle_idx = len(df) - 1
+        current_price = df.iloc[current_candle_idx]['close']
+        lookback_start_idx = max(0, current_candle_idx - min_candles)
+    
+        # Update FVG mitigation status up to the current candle
+        self.check_fvg_mitigation(current_candle_idx)
+    
+        # Check if we're currently in a trade
+        if self.in_trade:
+            # Monitor existing trade
+            if self.trade_type == 'long':
+                if df.iloc[current_candle_idx]['low'] <= self.stop_loss:
                     self.execute_signal({
-                               'take_profit': self.take_profit,
-                               'price': self.take_profit,
-                                'action': "exit",
-                                'reason': 'takeprofit',
-                               })
-                    #self.execute_signal(signal)
-                    logger.info("Take profit hit 💲✔️✔️")
-
-
-            else:
-                # Update FVG mitigation status
-                self.check_fvg_mitigation(i)
-
-                # Check for new trade setups
-
-                # Bullish setup: BOS up + CHoCH up + unmitigated bullish FVG
-                if df.iloc[i-1]['bos_up'] and df.iloc[i]['choch_up']:
-                    # Look back for unmitigated bullish FVGs
-                    for j in range(i-10, i):
-                        if j >= 0 and df.iloc[j].get('bullish_fvg', False) and not df.iloc[j].get('bullish_fvg_mitigated', False):
-                            fvg_low = df.iloc[j]['bullish_fvg_low']
-                            fvg_high = df.iloc[j]['bullish_fvg_high']
-                            sl_idx = int(df.iloc[j]['bullish_fvg_sl_index'])
-
-                            # Check if price is near the FVG
-                            if fvg_low <= current_price <= fvg_high:
-                                # Setup stop loss at the low of the FVG-forming candle
-                                stop_loss = df.iloc[sl_idx]['low']
-
-                                # Find recent structure low for take profit
-                                recent_lows = df.iloc[i-20:i]['low'].tolist()
-                                min_idx = recent_lows.index(min(recent_lows))
-                                take_profit = df.iloc[i-20+min_idx]['low']
-
-                                stop_loss = df.iloc[sl_idx]['low']
-                                risk = current_price - stop_loss
-                                take_profit = current_price + (risk * 2)  # 2:1 risk-reward
-                                signal = {
-                                    'action': 'entry',
-                                    'side': 'long',
-                                    'price': current_price,
-                                    'stop_loss': stop_loss,
-                                    'take_profit': take_profit
-                                }
-                                # Enter long trade
-                                self.execute_signal(signal)
-                                logger.info("Enter long🔵(Buy) 📈📈📈 trade 🐃🐃🐃")
-
-                                break
-
-                # Bearish setup: BOS down + CHoCH down + unmitigated bearish FVG
-                if df.iloc[i-1]['bos_down'] and df.iloc[i]['choch_down']:
-                    # Look back for unmitigated bearish FVGs
-                    for j in range(i-10, i):
-                        if j >= 0 and df.iloc[j].get('bearish_fvg', False) and not df.iloc[j].get('bearish_fvg_mitigated', False):
-                            fvg_low = df.iloc[j]['bearish_fvg_low']
-                            fvg_high = df.iloc[j]['bearish_fvg_high']
-                            sl_idx = int(df.iloc[j]['bearish_fvg_sl_index'])
-
-                            # Check if price is near the FVG
-                            if fvg_low <= current_price <= fvg_high:
-                                # Setup stop loss at the high of the FVG-forming candle
-                                stop_loss = df.iloc[sl_idx]['high']
-
-                                # Find recent structure high for take profit
-                                recent_highs = df.iloc[i-20:i]['high'].tolist()
-                                max_idx = recent_highs.index(max(recent_highs))
-                                take_profit = df.iloc[i-20+max_idx]['high']
-
-                                # Enter short trade
-                                stop_loss = df.iloc[sl_idx]['high']
-                                risk = stop_loss - current_price
-                                take_profit = current_price - (risk * 2)  # 2:1 risk-reward
-
-                                signal = {
-                                    'action': 'entry',
-                                    'side': 'short',
-                                    'price': current_price,
-                                    'stop_loss': stop_loss,
-                                    'take_profit': take_profit
-                                }
-                                self.execute_signal(signal)
-                                logger.info("Enter short🔴(Sell)📉📉📉 trade 🐻🐻🐻")
-                                break
-
-        # Close any open trade at the end of testing
-        #if self.in_trade:
-            # Take profit hit
-             #signal = {
-                              # 'price': self.df.iloc[-1]['close'],
-                               # 'action': "exit",
-                                #'reason': 'stoploss',
-                               #}
-            #self.execute_signal(signal)
-            #logger.info("Close any open trade at the end of testing")
-            #self.exit_trade(len(df) - 1, df.iloc[-1]['close'], 'end_of_test')
-
-        logger.info(f"Trade execution completed with {len(self.trades)} trades")
-        print(f"Trade execution completed with {len(self.trades)} trades")
-
+                        'price': self.stop_loss,
+                        'action': "exit",
+                        'reason': 'stoploss'
+                    })
+                    logger.info(f"Long trade stopped out at {self.stop_loss}")
+                    print(f"Long trade stopped out at {self.stop_loss}")
+    
+                elif df.iloc[current_candle_idx]['high'] >= self.take_profit:
+                    self.execute_signal({
+                        'price': self.take_profit,
+                        'action': "exit",
+                        'reason': 'takeprofit'
+                    })
+                    logger.info(f"Long trade took profit at {self.take_profit}")
+                    print(f"Long trade took profit at {self.take_profit}")
+    
+            elif self.trade_type == 'short':
+                if df.iloc[current_candle_idx]['high'] >= self.stop_loss:
+                    self.execute_signal({
+                        'price': self.stop_loss,
+                        'action': "exit",
+                        'reason': 'stoploss'
+                    })
+                    logger.info(f"Short trade stopped out at {self.stop_loss}")
+                    print(f"Short trade stopped out at {self.stop_loss}")
+    
+                elif df.iloc[current_candle_idx]['low'] <= self.take_profit:
+                    self.execute_signal({
+                        'price': self.take_profit,
+                        'action': "exit",
+                        'reason': 'takeprofit'
+                    })
+                    logger.info(f"Short trade took profit at {self.take_profit}")
+                    print(f"Short trade took profit at {self.take_profit}")
+    
+        # Check for new trade setups if not in a trade
+        else:
+            signal_detected = False
+    
+            # Bullish setup: BOS up + CHoCH up + unmitigated bullish FVG
+            if df.iloc[current_candle_idx - 1]['bos_up'] and df.iloc[current_candle_idx]['choch_up']:
+                # Look back over the last 4 hours for unmitigated bullish FVGs
+                for j in range(lookback_start_idx, current_candle_idx):
+                    if df.iloc[j].get('bullish_fvg', False) and not df.iloc[j].get('bullish_fvg_mitigated', False):
+                        fvg_low = df.iloc[j]['bullish_fvg_low']
+                        fvg_high = df.iloc[j]['bullish_fvg_high']
+                        sl_idx = int(df.iloc[j]['bullish_fvg_sl_index'])
+    
+                        # Check if current price is within or just above the FVG (allow wicking)
+                        if fvg_low <= current_price <= fvg_high or \
+                           (current_price > fvg_high and df.iloc[current_candle_idx]['low'] >= fvg_low):
+                            # Calculate position size based on risk
+                            stop_loss = df.iloc[sl_idx]['low']
+                            risk = current_price - stop_loss
+                            if risk <= 0:
+                                continue  # Invalid stop loss
+                            risk_amount = self.current_balance * self.risk_per_trade
+                            self.position_size = risk_amount / risk
+                            take_profit = current_price + (risk * 2)  # 2:1 risk-reward
+    
+                            signal = {
+                                'action': 'entry',
+                                'side': 'long',
+                                'price': current_price,
+                                'stop_loss': stop_loss,
+                                'take_profit': take_profit
+                            }
+                            self.execute_signal(signal)
+                            logger.info(f"Entered long trade at {current_price}, SL: {stop_loss}, TP: {take_profit}")
+                            print(f"Entered long trade at {current_price}, SL: {stop_loss}, TP: {take_profit}")
+                            signal_detected = True
+                            break  # Only take one trade at a time
+    
+            # Bearish setup: BOS down + CHoCH down + unmitigated bearish FVG
+            elif df.iloc[current_candle_idx - 1]['bos_down'] and df.iloc[current_candle_idx]['choch_down']:
+                # Look back over the last 4 hours for unmitigated bearish FVGs
+                for j in range(lookback_start_idx, current_candle_idx):
+                    if df.iloc[j].get('bearish_fvg', False) and not df.iloc[j].get('bearish_fvg_mitigated', False):
+                        fvg_low = df.iloc[j]['bearish_fvg_low']
+                        fvg_high = df.iloc[j]['bearish_fvg_high']
+                        sl_idx = int(df.iloc[j]['bearish_fvg_sl_index'])
+    
+                        # Check if current price is within or just below the FVG (allow wicking)
+                        if fvg_low <= current_price <= fvg_high or \
+                           (current_price < fvg_low and df.iloc[current_candle_idx]['high'] <= fvg_high):
+                            # Calculate position size based on risk
+                            stop_loss = df.iloc[sl_idx]['high']
+                            risk = stop_loss - current_price
+                            if risk <= 0:
+                                continue  # Invalid stop loss
+                            risk_amount = self.current_balance * self.risk_per_trade
+                            self.position_size = risk_amount / risk
+                            take_profit = current_price - (risk * 2)  # 2:1 risk-reward
+    
+                            signal = {
+                                'action': 'entry',
+                                'side': 'short',
+                                'price': current_price,
+                                'stop_loss': stop_loss,
+                                'take_profit': take_profit
+                            }
+                            self.execute_signal(signal)
+                            logger.info(f"Entered short trade at {current_price}, SL: {stop_loss}, TP: {take_profit}")
+                            print(f"Entered short trade at {current_price}, SL: {stop_loss}, TP: {take_profit}")
+                            signal_detected = True
+                            break  # Only take one trade at a time
+    
+            # If no signal detected, return early
+            if not signal_detected:
+                logger.info("No trading signal detected, exiting trade check")
+                print("No trading signal detected, exiting trade check")
+                return self.trades, self.equity_curve
+    
+        logger.info(f"Live trade check completed. In trade: {self.in_trade}, Total trades: {len(self.trades)}")
+        print(f"Live trade check completed. In trade: {self.in_trade}, Total trades: {len(self.trades)}")
         return self.trades, self.equity_curve
 
 
@@ -510,7 +514,7 @@ class SMC:
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
 
         # Calculate total return
-        total_return = (self.balance - self.initial_balance) / self.initial_balance
+        total_return = (self.current_balance - self.initial_balance) / self.initial_balancex
 
         # Calculate maximum drawdown
         peak = self.initial_balance
@@ -531,7 +535,7 @@ class SMC:
             'total_return': self.balance - self.initial_balance,
             'total_return_pct': total_return * 100,
             'max_drawdown_pct': max_drawdown * 100,
-            'final_balance': self.balance
+            'final_balance': self.current_balance
         }
 
         logger.info(f"Performance metrics: Win rate: {win_rate:.2%}, Profit factor: {profit_factor:.2f}, " +
@@ -714,54 +718,138 @@ class SMC:
         except Exception as e:
             logger.error(f"Error closing position: {str(e)}")
             print(f"Error closing position: {str(e)}")
-
-
+    
     def run(self, scan_interval=60):
+        """
+        Main loop for live trading with the SMC strategy.
+        - Fetches real-time market data, processes trades, and visualizes results.
+        - Syncs balance with the API and handles interruptions gracefully.
+        - Runs indefinitely until interrupted, checking for trades every scan_interval seconds.
+        """
         sast_now = get_sast_time()
         logger.info(f"Starting BitMEXLiveTrader at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Starting BitMEXLiveTrader at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        # Initialize balance
-        profile = self.api.get_profile_info()
-        self.initial_balance = profile['balance']
-        self.current_balance = self.initial_balance
-        self.equity_curve = [self.initial_balance]
-
+    
+        # Initialize balance from API
+        try:
+            profile = self.api.get_profile_info()
+            self.initial_balance = profile['balance']
+            self.current_balance = self.initial_balance
+            self.equity_curve = [self.initial_balance]
+            logger.info(f"Initial balance set to {self.initial_balance}")
+        except Exception as e:
+            logger.error(f"Failed to initialize balance: {str(e)}")
+            print(f"Failed to initialize balance: {str(e)}")
+            return  # Exit if we can't get the initial balance
+    
+        # Main trading loop
         try:
             while True:
                 sast_now = get_sast_time()
-                # Your existing run logic...
+                logger.info(f"New scan started at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"New scan started at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+    
+                # Step 1: Fetch latest market data
                 self.get_market_data()
+                if self.df.empty or len(self.df) < 16:  # Minimum 4 hours of 15m candles or equivalent
+                    logger.warning(f"Insufficient data: {len(self.df)} candles retrieved")
+                    print(f"Insufficient data: {len(self.df)} candles retrieved")
+                    time.sleep(scan_interval)
+                    continue
+    
+                # Step 2: Analyze market structure and FVGs
                 self.identify_structure()
                 self.identify_fvg()
-                self.execute_trades()
-                self.calculate_performance()
-
+    
+                # Step 3: Execute trades based on current conditions
+                trades, equity_curve = self.execute_trades()
+                if not trades and not self.in_trade:
+                    logger.info("No trades executed or in progress during this scan")
+                else:
+                    logger.info(f"Trades executed or monitored. Total trades: {len(self.trades)}")
+    
+                # Step 4: Sync balance with API (post-trade)
+                try:
+                    profile = self.api.get_profile_info()
+                    api_balance = profile['balance']
+                    if abs(api_balance - self.current_balance) > 0.01:  # Small tolerance
+                        logger.info(f"Balance updated from API: {self.current_balance} -> {api_balance}")
+                        self.current_balance = api_balance
+                        self.equity_curve.append(self.current_balance)
+                except Exception as e:
+                    logger.warning(f"Failed to sync balance with API: {str(e)}")
+                    print(f"Failed to sync balance with API: {str(e)}")
+    
+                # Step 5: Calculate and log performance metrics
+                performance = self.calculate_performance()
+                logger.info(f"Performance snapshot: {performance}")
+    
+                # Step 6: Visualize results (optional, can be toggled or run periodically)
+                if self.trades:  # Only visualize if there are trades to show
+                    try:
+                        # Show last 4 hours of data (adjust based on timeframe: 16 for 15m, 48 for 5m)
+                        lookback_candles = 16 if self.timeframe == "15m" else 48 if self.timeframe == "5m" else 4
+                        fig, fig2 = self.visualize_results(start_idx=max(0, len(self.df) - lookback_candles))
+                        plt.show()  # Displays charts (non-blocking in some environments)
+                        plt.close(fig)
+                        plt.close(fig2)
+                    except Exception as e:
+                        logger.warning(f"Visualization failed: {str(e)}")
+    
+                # Wait for the next scan
+                logger.info(f"Waiting {scan_interval} seconds for next scan...")
                 time.sleep(scan_interval)
-
+    
         except KeyboardInterrupt:
-            # Your existing interrupt handling...
+            logger.info("Trading loop stopped by user")
+            print("Trading loop stopped by user")
             if self.in_trade:
-                self.api.close_all_positions()
-                self.in_trade = False
-
+                try:
+                    self.api.close_all_positions()
+                    logger.info("All open positions closed due to interruption")
+                    print("All open positions closed due to interruption")
+                except Exception as e:
+                    logger.error(f"Failed to close positions on exit: {str(e)}")
+                    print(f"Failed to close positions on exit: {str(e)}")
+            
+            # Final performance report
+            final_performance = self.calculate_performance()
+            logger.info(f"Final performance metrics: {final_performance}")
+            print(f"Final performance metrics: {final_performance}")
+    
+        except Exception as e:
+            logger.error(f"Unexpected error in trading loop: {str(e)}")
+            print(f"Unexpected error in trading loop: {str(e)}")
+            if self.in_trade:
+                try:
+                    self.api.close_all_positions()
+                    logger.info("Emergency closure of all positions")
+                except Exception as e:
+                    logger.error(f"Failed to close positions during error handling: {str(e)}")
+    
+    
+    
 def BitMEXLiveTrader(API_KEY, API_SECRET):
     """
     Main function to run the BitMEXLiveTrader
     """
     # BitMEX API credentials (use your test API key and secret)
-    #API_KEY = oAPI_KEY")  # Your test API key
+    #API_KEY = os.getenv("API_KEY")  # Your test API key
     #API_SECRET = os.getenv("API_SECRET")  # Your test API secret
 
 
     try:
-        # Call the custom logging configuration function
-        #logger = configure_logging()
-        print("Current time in SAST:", sast_now.strftime('%Y-%m-%d %H:%M:%S'))
+        
+        print("Current time in SAST:", get_sast_now().strftime('%Y-%m-%d %H:%M:%S'))
         # Example log calls
-        logger.info("This is BitmexSMCLiveTrader version 0.1 ")
-        logger.error(f"Current time in SAST:{sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("BitmexSMCLiveTrader version 0.1 ")
+        logger.info(f"Current time in SAST: get_sast_time().strftime('%Y-%m-%d %H:%M:%S')}")
         # Initialize and run BitMEXLiveTrader
+        api= BitMEXTestAPI(
+            api_key=API_KEY,
+            api_secret=API_SECRET,
+            test=self.test
+        )aq
         trader = SMC(
             api_key=API_KEY,
             api_secret=API_SECRET,
@@ -769,8 +857,10 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
             symbol="SOLUSD",  # Solana/USD
             timeframe="5m",  # 5m candles
             risk_per_trade=0.02  # 2% risk per trade
-        )
-
+            )
+         
+        api.run_test_sequence()
+        logger.info("Welcome to BitmexSMCLiveTrader version 0.1🥺🥺\n - Bitmax Api Looks good to go👍👍👍\n -Start Trading with Smart Money Concept Strategy🤲")
         # Start trading loop
         trader.run(scan_interval=120)  # Scan every 2 minutes
 
