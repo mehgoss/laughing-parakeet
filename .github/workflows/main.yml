@@ -12,8 +12,6 @@ on:
   # Run on pull requests to main branch
   pull_request:
     branches: [ "main" ]
-  
-  # No schedule - we'll implement a self-scheduling mechanism
 
 permissions:
   contents: read
@@ -21,41 +19,12 @@ permissions:
 
 concurrency:
   group: trading-strategy
-  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}  # Cancel in-progress runs on push/PR
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 jobs:
-  check-running:
-    runs-on: ubuntu-latest
-    outputs:
-      should-run: ${{ steps.check.outputs.should-run }}
-    steps:
-      - name: Check for running workflows
-        id: check
-        run: |
-          # Get list of running workflows (excluding this one)
-          WORKFLOW_ID=$(echo $GITHUB_WORKFLOW)
-          CURRENT_RUN_ID=$(echo $GITHUB_RUN_ID)
-          
-          # API call to get running workflows
-          RUNNING=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs?status=in_progress&event=workflow_dispatch")
-          
-          # Count workflows (excluding this one)
-          COUNT=$(echo $RUNNING | jq ".workflow_runs | map(select(.id != $CURRENT_RUN_ID)) | length")
-          
-          if [ "$COUNT" -gt "0" ]; then
-            echo "Other workflows running. Skipping this run."
-            echo "should-run=false" >> $GITHUB_OUTPUT
-          else
-            echo "No other workflows running. Proceeding."
-            echo "should-run=true" >> $GITHUB_OUTPUT
-          fi
-
   backtest:
-    needs: check-running
-    if: needs.check-running.outputs.should-run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 350  # Just under 6 hours (GitHub limit)
+    timeout-minutes: 5  # Maximum runtime of 5 minutes
     
     steps:
     - name: Checkout repository
@@ -78,22 +47,6 @@ jobs:
         API_KEY: ${{ secrets.API_KEY }}
         API_SECRET: ${{ secrets.API_SECRET }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        MAX_RUNTIME: 20400  # 5 hours 40 minutes in seconds
-        REQUIRED_BREAK: 1800  # 30 minutes break in seconds
+        MAX_RUNTIME: 300  # 5 minutes in seconds
       run: |
         python App.py
-        
-    - name: Schedule next run
-      # Only auto-schedule if this was triggered by workflow_dispatch, not by push or PR
-      if: success() && github.event_name == 'workflow_dispatch'
-      run: |
-        # Wait for required break
-        echo "Taking a 30-minute break before scheduling next run"
-        sleep 30  # Just a short pause before scheduling
-        
-        # Trigger a new workflow run after the break
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$(echo $GITHUB_WORKFLOW | cut -d'/' -f2)/dispatches \
-          -d '{"ref":"${{ github.ref }}"}'
