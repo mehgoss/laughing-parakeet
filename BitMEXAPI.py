@@ -74,7 +74,7 @@ class BitMEXTestAPI:
 
             # Fetch current BTC/USD price for conversion
             btc_price_data = self.client.Trade.Trade_getBucketed(
-                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD')",
+                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD'), 
                 binSize="1m",
                 count=1,
                 reverse=True
