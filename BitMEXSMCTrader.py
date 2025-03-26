@@ -126,7 +126,7 @@ class SMC:
                 self.df = data
                 if not data.empty:
                     if isinstance(self.df.columns, pd.MultiIndex):
-                        self.df.columns = [col[1].lower() if col[1] else col[0].lower() for col in self.df.columns]
+                        self.df.columns = [col[0].lower() if col[1] else col[0].lower() for col in self.df.columns]
                     else:
                         self.df.columns = [col.lower() for col in self.df.columns]
                     required_columns = ['open', 'high', 'low', 'close']
