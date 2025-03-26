@@ -860,7 +860,7 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
             risk_per_trade=0.02  # 2% risk per trade
             )
          
-        api.run_test_sequence()
+        #api.run_test_sequence()
         logger.info("Welcome to BitmexSMCLiveTrader version 0.1🥺🥺\n - Bitmax Api Looks good to go👍👍👍\n -Start Trading with Smart Money Concept Strategy🤲")
         # Start trading loop
         trader.run(scan_interval=120)  # Scan every 2 minutes
