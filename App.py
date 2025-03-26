@@ -3,6 +3,8 @@ import logging
 import sys
 import os
 from datetime import datetime
+import signal
+import traceback
 
 # Import your trading modules
 from BitMEXSMCTrader import BitMEXLiveTrader
@@ -18,6 +20,16 @@ API_SECRET = os.getenv("API_SECRET")
 MAX_RUNTIME = int(os.getenv("MAX_RUNTIME", 300))  # Default 5 minutes
 SUBPROCESS_RUNTIME = 120  # 2 minutes per subprocess
 
+class TimeoutException(Exception):
+    """Custom exception to handle timeout scenarios."""
+    pass
+
+def timeout_handler(signum, frame):
+    """
+    Signal handler to raise a TimeoutException when time limit is reached.
+    """
+    raise TimeoutException("Subprocess execution time exceeded")
+
 def configure_main_logger():
     """
     Configure the main logger with error handling.
@@ -31,32 +43,59 @@ def configure_main_logger():
 
 def run_trading_subprocess(logger):
     """
-    Run a single trading subprocess for a fixed duration.
+    Run a single trading subprocess with strict time monitoring.
     
     Returns:
     - bool: True if subprocess completed successfully, False otherwise
     """
+    # Set up signal-based timeout
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(SUBPROCESS_RUNTIME)
+    
     start_time = time.time()
     iteration = 0
     
     try:
         trader = BitMEXLiveTrader(API_KEY, API_SECRET)
         
-        while time.time() - start_time < SUBPROCESS_RUNTIME:
+        while True:
+            # Check elapsed time before each iteration
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= SUBPROCESS_RUNTIME:
+                logger.info(f"Subprocess time limit reached after {elapsed_time:.2f} seconds")
+                break
+            
             logger.info(f"Subprocess iteration {iteration} starting")
             
-            # Execute trading logic
+            # Execute trading logic with time tracking
+            iteration_start = time.time()
             trader.trade()  # Adjust based on your actual implementation
+            iteration_duration = time.time() - iteration_start
+            
+            logger.info(f"Iteration {iteration} took {iteration_duration:.2f} seconds")
             
             iteration += 1
-            time.sleep(5)  # Prevent overwhelming the API
+            
+            # Prevent overwhelming the API and ensure we don't exceed time limit
+            remaining_time = SUBPROCESS_RUNTIME - (time.time() - start_time)
+            if remaining_time > 5:
+                time.sleep(min(5, remaining_time))
+            else:
+                break
         
         logger.info(f"Subprocess completed after {iteration} iterations")
         return True
     
+    except TimeoutException:
+        logger.warning("Subprocess timed out")
+        return False
     except Exception as e:
         logger.error(f"Subprocess error: {e}")
+        logger.error(traceback.format_exc())
         return False
+    finally:
+        # Cancel the alarm
+        signal.alarm(0)
 
 def main():
     """
@@ -91,13 +130,15 @@ def main():
             time.sleep(10)
         
         # Log final summary
+        total_runtime = time.time() - total_start_time
         logger.info(f"Backtest completed")
-        logger.info(f"Total runtime: {time.time() - total_start_time:.2f} seconds")
+        logger.info(f"Total runtime: {total_runtime:.2f} seconds")
         logger.info(f"Total subprocesses run: {subprocess_count}")
         logger.info(f"Successful subprocesses: {successful_subprocesses}")
     
     except Exception as e:
         logger.error(f"Error in main execution: {e}")
+        logger.error(traceback.format_exc())
         sys.exit(1)
 
 if __name__ == "__main__":
