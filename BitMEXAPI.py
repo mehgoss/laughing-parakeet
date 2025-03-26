@@ -99,6 +99,7 @@ class BitMEXTestAPI:
                     "available_margin": margin.get('availableMargin'),
                     "unrealized_pnl": margin.get('unrealisedPnl'),
                     "realized_pnl": margin.get('realisedPnl')
+                    "usd" : wallet_balance_usd
                 },
                 "positions": [{
                     "symbol": pos.get('symbol'),
