@@ -1,86 +1,53 @@
 import asyncio
-import json
 import logging
-import os
-import threading
-import time
-import telebot
-import pytz
-from datetime import datetime, timedelta
-from queue import Queue
 import sys
-import bitmex
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
-import pandas as pd
-from dotenv import load_dotenv
-import yfinance as yf
-import telegram
-from telegram import Bot, Update
-from telegram.error import TelegramError
-from telegram.ext import Application, CommandHandler, ContextTypes
 from io import BytesIO
+import pytz
+from datetime import datetime
+from telegram import Bot
+from telegram.error import TelegramError
 
-
-
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 def get_sast_time():
     utc_now = datetime.utcnow()
     sast = pytz.timezone('Africa/Johannesburg')
     return utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
-    
-    
 
 class TelegramBot:
     def __init__(self, token, chat_id):
-        """
-        Initialize the Telegram bot.
-
-        :param token: Telegram bot token
-        :param chat_id: Chat ID to send messages to
-        """
         self.token = token
         self.chat_id = chat_id
         self._bot = None
+        self._loop = asyncio.get_event_loop()
 
     async def _async_send_message(self, message=None):
-        """
-        Async method to send a message.
-
-        :param message: Custom message to send (optional)
-        """
         try:
             if not self._bot:
+                if not self.token or "your_bot_token" in self.token:
+                    raise ValueError("Invalid bot token. Please provide a valid token from @BotFather")
                 self._bot = Bot(token=self.token)
 
             if message is None:
                 current_time = get_sast_time()
-                message = f"{current_time.strftime('%Y-%m-%d %H:%M:%S')},100 - INFO - This is a test message"
+                message = f"{current_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - This is a test message"
 
             await self._bot.send_message(chat_id=self.chat_id, text=message)
 
         except TelegramError as e:
-            logger.error(f"Telegram error sending message: {e}")
+            logging.getLogger(__name__).error(f"Telegram error sending message: {e}")
         except Exception as e:
-            logger.error(f"Error sending message: {e}")
+            logging.getLogger(__name__).error(f"Error sending message: {e}")
 
     async def _async_send_photo(self, photo_buffer, caption=None):
-        """
-        Async method to send a photo.
-
-        :param photo_buffer: BytesIO buffer containing the image
-        :param caption: Optional caption for the photo
-        """
         try:
             if not self._bot:
+                if not self.token or "your_bot_token" in self.token:
+                    raise ValueError("Invalid bot token. Please provide a valid token from @BotFather")
                 self._bot = Bot(token=self.token)
 
-            photo_buffer.seek(0)  # Reset buffer position to start
+            photo_buffer.seek(0)
             await self._bot.send_photo(
                 chat_id=self.chat_id,
                 photo=photo_buffer,
@@ -88,32 +55,30 @@ class TelegramBot:
             )
 
         except TelegramError as e:
-            logger.error(f"Telegram error sending photo: {e}")
+            logging.getLogger(__name__).error(f"Telegram error sending photo: {e}")
         except Exception as e:
-            logger.error(f"Error sending photo: {e}")
+            logging.getLogger(__name__).error(f"Error sending photo: {e}")
 
     def send_message(self, message=None):
-        """Wrapper for sending text messages synchronously"""
+        """Synchronous wrapper for sending text messages"""
+        logger = logging.getLogger(__name__)
         try:
-            if 'get_ipython' in sys.modules['__main__'].__dict__:
-                import nest_asyncio
-                nest_asyncio.apply()
-            asyncio.run(self._async_send_message(message))
+            if self._loop.is_running():
+                # If we're already in an event loop, create a task
+                asyncio.ensure_future(self._async_send_message(message))
+            else:
+                # If no event loop is running, use run
+                asyncio.run(self._async_send_message(message))
         except Exception as e:
             logger.error(f"Error in send_message: {e}")
 
     def send_photo(self, fig=None, caption=None):
-        """
-        Send a matplotlib figure or current plot as a photo.
-
-        :param fig: Matplotlib figure object (optional, will use current plot if None)
-        :param caption: Optional caption for the photo
-        """
+        """Send a matplotlib figure or current plot as a photo"""
+        logger = logging.getLogger(__name__)
         try:
-            # Create buffer for image
+            import matplotlib.pyplot as plt
             buffer = BytesIO()
             
-            # Use provided figure or get current plot
             if fig is None:
                 plt.savefig(buffer, format='png', bbox_inches='tight')
             else:
@@ -121,15 +86,11 @@ class TelegramBot:
             
             buffer.seek(0)
             
-            # Handle Jupyter environment
-            if 'get_ipython' in sys.modules['__main__'].__dict__:
-                import nest_asyncio
-                nest_asyncio.apply()
+            if self._loop.is_running():
+                asyncio.ensure_future(self._async_send_photo(buffer, caption))
+            else:
+                asyncio.run(self._async_send_photo(buffer, caption))
             
-            # Send the photo
-            asyncio.run(self._async_send_photo(buffer, caption))
-            
-            # Clean up
             buffer.close()
             if fig is not None:
                 plt.close(fig)
@@ -141,61 +102,51 @@ class CustomLoggingHandler(logging.Handler):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
+        self._emitting = False  # Flag to prevent recursive calls
 
     def emit(self, record):
+        if self._emitting:  # Prevent recursive logging
+            return
         try:
+            self._emitting = True
             log_message = self.format(record)
             self.bot.send_message(log_message)
         except Exception as e:
             print(f"Error in custom logging handler: {e}", file=sys.stderr)
+        finally:
+            self._emitting = False
 
-def configure_logging(BOT_TOKEN, CHAT_ID):
-    """
-    Configure logging with a custom Telegram handler.
-
-    :return: Configured logger
-    """
+def configure_logging(bot_token, chat_id):
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    
-    # Create bot instance
-    bot = TelegramBot(BOT_TOKEN, CHAT_ID)
-    
-    # Create and configure custom handler
-    custom_handler = CustomLoggingHandler(bot)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    custom_handler.setFormatter(formatter)
-    
-    # Configure stream handler
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
-    
-    # Clear and add handlers
-    logger.handlers.clear()
-    logger.addHandler(custom_handler)
-    logger.addHandler(stream_handler)
+    if not logger.handlers:  # Only configure if not already configured
+        logger.setLevel(logging.INFO)
+        
+        bot = TelegramBot(bot_token, chat_id)
+        custom_handler = CustomLoggingHandler(bot)
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        custom_handler.setFormatter(formatter)
+        
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        
+        logger.addHandler(custom_handler)
+        logger.addHandler(stream_handler)
     
     return logger
 
-# Global logger instance (will be configured later)
-logger = logging.getLogger(__name__)
+# Configure logger at module level
+#BOT_TOKEN = "your_bot_token"  # Replace with actual token
+#CHAT_ID = "your_chat_id"      # Replace with actual chat ID
+#logger = configure_logging(BOT_TOKEN, CHAT_ID)
 
-# Example usage:
 if __name__ == "__main__":
-    # Example configuration - replace with actual token and chat_id
-    BOT_TOKEN = "your_bot_token"
-    CHAT_ID = "your_chat_id"
-    
-    # Configure logging
-    logger = configure_logging(BOT_TOKEN, CHAT_ID)
-    
-    # Example bot usage
     bot = TelegramBot(BOT_TOKEN, CHAT_ID)
     
-    # Send test message
+    # Test message
+    logger.info("Starting script")
     bot.send_message("Test message")
-    
-    # Example matplotlib plot
-    plt.plot([1, 2, 3], [4, 5, 6])
-    plt.title("Test Plot")
-    bot.send_photo(caption="Test chart")
+
+
+
+
+
