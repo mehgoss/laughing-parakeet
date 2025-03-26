@@ -22,10 +22,19 @@ from telegram.error import TelegramError
 from telegram.ext import Application, CommandHandler, ContextTypes
 from io import BytesIO
 
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 def get_sast_time():
     utc_now = datetime.utcnow()
     sast = pytz.timezone('Africa/Johannesburg')
     return utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+    
+    
 
 class TelegramBot:
     def __init__(self, token, chat_id):
