@@ -30,9 +30,9 @@ def timed_job():
     try:
         iteration = 0
         # Initialize trader bot (assuming it’s a class; adjust if it’s a function)
-        trader = BitMEXLiveTrader(API_KEY, API_SECRET)
-        
+                
         while time.time() - start_time < max_runtime:  # Fixed syntax error
+            trader = BitMEXLiveTrader(API_KEY, API_SECRET)
             logger.info(f"Iteration {iteration} starting")
             # Execute trading logic (adjust based on BitMEXLiveTrader's API)
             trader.trade()  # Hypothetical method; replace with actual usage
