@@ -606,8 +606,8 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
          
         #api.run_test_sequence()
         logger.info("Welcome to BitmexSMCLiveTrader version 0.1🥺🥺\n - Bitmax Api Looks good to go👍👍👍\n -Start Trading with Smart Money Concept Strategy🤲")
-        # Start trading loop
-        trader.run(scan_interval=120)  # Scan every 2 minutes
+        
+        return trader, api
 
     except KeyboardInterrupt:
         logger.info("BitMEXLiveTrader stopped by user")
