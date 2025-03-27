@@ -607,7 +607,7 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
             api_key=API_KEY,
             api_secret=API_SECRET,
             test=True,
-            symbol="SOLUSD",
+            symbol="BTCUSD",
             timeframe="5m",
             risk_per_trade=0.02,
             telegram_bot=telegram_bot  # Pass the TelegramBot instance
