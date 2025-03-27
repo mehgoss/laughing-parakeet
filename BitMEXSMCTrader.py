@@ -78,7 +78,7 @@ class SMC:
         """
         try:
             logger.info(f"Fetching {self.symbol} market data from BitMEX")
-            data = self.api.get_candle(timeframe=self.timeframe)
+            data = self.api.get_candle(symbol=self.symbol, timeframe=self.timeframe)
             df = pd.DataFrame(data)
             logger.info(f"Retrieved {len(df)} candles from BitMEX")
             self.df = df
