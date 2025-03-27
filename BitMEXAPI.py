@@ -18,7 +18,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-logger = configure_logging(TOKEN, CHAT_ID)
+logger, telegram_bot = configure_logging(TOKEN, CHAT_ID)
 
 # Set the correct time zone
 utc_now = datetime.utcnow()
