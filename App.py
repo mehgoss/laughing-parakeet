@@ -56,7 +56,7 @@ def run_trading_subprocess(logger):
     iteration = 0
     
     try:
-        trader = BitMEXLiveTrader(API_KEY, API_SECRET)
+        trader, api = BitMEXLiveTrader(API_KEY, API_SECRET)
         
         while True:
             # Check elapsed time before each iteration
