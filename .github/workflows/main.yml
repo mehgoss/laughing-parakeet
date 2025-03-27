@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
   
   # Scheduled trigger every 10 minutes
-  schedule:
-    - cron: '*/10 * * * *'  # Run every 10 minutes
+  #schedule:
+    #- cron: '*/10 * * * *'  # Run every 10 minutes
 
 permissions:
   contents: read
