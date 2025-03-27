@@ -233,7 +233,7 @@ class BitMEXTestAPI:
             order = self.client.Order.Order_new(
                 symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD') ,
                 side=side,
-                orderQty=quantity,
+                orderQty=quantity if quantity > 1 else quantity*100,
                 #ordType=order_type
             ).result()[0]
 
