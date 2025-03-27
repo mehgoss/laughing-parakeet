@@ -4,10 +4,13 @@ name: BitMEX v Strategy Backtest
 on:
   # Manual trigger - use this to start a new session
   workflow_dispatch:
-  
+  push:
+    branches:
+      - main
+      - develop
   # Scheduled trigger every 10 minutes
-  #schedule:
-    #- cron: '*/10 * * * *'  # Run every 10 minutes
+  schedule:
+    - cron: '*/10 * * * *'  # Run every 10 minutes
 
 permissions:
   contents: read
