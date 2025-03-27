@@ -69,7 +69,7 @@ def run_trading_subprocess(logger):
             
             # Execute trading logic with time tracking
             iteration_start = time.time()
-            trader.trade()  # Adjust based on your actual implementation
+            trader.run()  # Adjust based on your actual implementation
             iteration_duration = time.time() - iteration_start
             
             logger.info(f"Iteration {iteration} took {iteration_duration:.2f} seconds")
