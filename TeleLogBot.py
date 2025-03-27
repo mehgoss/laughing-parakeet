@@ -6,6 +6,7 @@ import pytz
 from datetime import datetime
 from telegram import Bot
 from telegram.error import TelegramError
+from httpx import AsyncClient, Limits
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,8 +15,6 @@ def get_sast_time():
     utc_now = datetime.utcnow()
     sast = pytz.timezone('Africa/Johannesburg')
     return utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
-from telegram import Bot
-from httpx import AsyncClient, Limits
 
 class TelegramBot:
     def __init__(self, token, chat_id):
@@ -35,17 +34,17 @@ class TelegramBot:
                 if not self.token or "your_bot_token" in self.token:
                     raise ValueError("Invalid bot token.")
                 self._bot = Bot(token=self.token, http_client=self._client)  # Pass custom client
-     
-                if message is None:
+            
+            if message is None:
                 current_time = get_sast_time()
                 message = f"{current_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - This is a test message"
 
             await self._bot.send_message(chat_id=self.chat_id, text=message)
 
         except TelegramError as e:
-            logging.getLogger(__name__).error(f"Telegram error sending message: {e}")
+            logger.error(f"Telegram error sending message: {e}")
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error sending message: {e}")
+            logger.error(f"Error sending message: {e}")
 
     async def _async_send_photo(self, photo_buffer, caption=None):
         try:
@@ -62,13 +61,12 @@ class TelegramBot:
             )
 
         except TelegramError as e:
-            logging.getLogger(__name__).error(f"Telegram error sending photo: {e}")
+            logger.error(f"Telegram error sending photo: {e}")
         except Exception as e:
-            logging.getLogger(__name__).error(f"Error sending photo: {e}")
+            logger.error(f"Error sending photo: {e}")
 
     def send_message(self, message=None):
         """Synchronous wrapper for sending text messages"""
-        logger = logging.getLogger(__name__)
         try:
             if self._loop.is_running():
                 # If we're already in an event loop, create a task
@@ -81,7 +79,6 @@ class TelegramBot:
 
     def send_photo(self, fig=None, caption=None):
         """Send a matplotlib figure or current plot as a photo"""
-        logger = logging.getLogger(__name__)
         try:
             import matplotlib.pyplot as plt
             buffer = BytesIO()
@@ -140,20 +137,3 @@ def configure_logging(bot_token, chat_id):
         logger.addHandler(stream_handler)
     
     return logger
-
-# Configure logger at module level
-#BOT_TOKEN = "your_bot_token"  # Replace with actual token
-#CHAT_ID = "your_chat_id"      # Replace with actual chat ID
-#logger = configure_logging(BOT_TOKEN, CHAT_ID)
-
-if __name__ == "__main__":
-    bot = TelegramBot(BOT_TOKEN, CHAT_ID)
-    
-    # Test message
-    logger.info("Starting script")
-    bot.send_message("Test message")
-
-
-
-
-
