@@ -17,8 +17,8 @@ API_KEY = os.getenv("API_KEY")
 API_SECRET = os.getenv("API_SECRET")
 
 # Maximum runtime configuration
-MAX_RUNTIME = int(os.getenv("MAX_RUNTIME", 300))  # Default 5 minutes
-SUBPROCESS_RUNTIME = 120  # 2 minutes per subprocess
+MAX_RUNTIME = int(os.getenv("MAX_RUNTIME", 5*60))  # Default 5 minutes
+SUBPROCESS_RUNTIME = 5 * 60# 2 minutes per subprocess
 
 class TimeoutException(Exception):
     """Custom exception to handle timeout scenarios."""
