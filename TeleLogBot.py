@@ -121,7 +121,6 @@ class CustomLoggingHandler(logging.Handler):
             print(f"Error in custom logging handler: {e}", file=sys.stderr)
         finally:
             self._emitting = False
-
 def configure_logging(bot_token, chat_id):
     logger = logging.getLogger(__name__)
     if not logger.handlers:
@@ -138,4 +137,4 @@ def configure_logging(bot_token, chat_id):
         logger.addHandler(custom_handler)
         logger.addHandler(stream_handler)
     
-    return logger
+    return logger, bot  # Return both logger and bot instance
