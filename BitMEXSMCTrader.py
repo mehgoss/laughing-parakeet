@@ -572,7 +572,49 @@ class SMC:
                 logger.error(f"Failed to close positions on exit: {str(e)}")
         final_performance = self.calculate_performance()
         logger.info(f"Final performance metrics: {final_performance}")
+    
+    
+def BitMEXLiveTrader(API_KEY, API_SECRET):
+    """
+    Main function to run the BitMEXLiveTrader
+    """
+    # BitMEX API credentials (use your test API key and secret)
+    #API_KEY = os.getenv("API_KEY")  # Your test API key
+    #API_SECRET = os.getenv("API_SECRET")  # Your test API secret
 
+
+    try:
+        
+        print("Current time in SAST:", get_sast_time().strftime('%Y-%m-%d %H:%M:%S'))
+        # Example log calls
+        logger.info("BitmexSMCLiveTrader version 0.1 ")
+        logger.info(f"Current time in SAST: {get_sast_time().strftime('%Y-%m-%d %H:%M:%S')}")
+        # Initialize and run BitMEXLiveTrader
+        api= BitMEXTestAPI(
+            api_key=API_KEY,
+            api_secret=API_SECRET,
+            test=self.test
+        )
+        trader = SMC(
+            api_key=API_KEY,
+            api_secret=API_SECRET,
+            test=True,  # Use testnet
+            symbol="SOLUSD",  # Solana/USD
+            timeframe="5m",  # 5m candles
+            risk_per_trade=0.02  # 2% risk per trade
+            )
+         
+        api.run_test_sequence()
+        logger.info("Welcome to BitmexSMCLiveTrader version 0.1🥺🥺\n - Bitmax Api Looks good to go👍👍👍\n -Start Trading with Smart Money Concept Strategy🤲")
+        # Start trading loop
+        trader.run(scan_interval=120)  # Scan every 2 minutes
+
+    except KeyboardInterrupt:
+        logger.info("BitMEXLiveTrader stopped by user")
+        print("BitMEXLiveTrader stopped by user")
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        print(f"Unexpected error: {str(e)}")
 # Example usage
 if __name__ == "__main__":
     API_KEY = os.getenv("BITMEX_API_KEY")
