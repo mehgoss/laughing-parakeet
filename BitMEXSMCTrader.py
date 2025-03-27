@@ -511,8 +511,8 @@ class SMC:
 
         try:
             profile = self.api.get_profile_info()
-            self.initial_balance = profile['balance']['usd']:.2f
-            self.current_balance = self.initial_balance:.2f
+            self.initial_balance = float(profile['balance']['usd']):.2f
+            self.current_balance = float(self.initial_balance):.2f
             self.equity_curve = [self.initial_balance]
             logger.info(f"Initial balance set to {self.initial_balance}")
         except Exception as e:
@@ -537,7 +537,7 @@ class SMC:
 
             try:
                 profile = self.api.get_profile_info()
-                api_balance = profile['balance']['usd']:.2f
+                api_balance = profile['balance']['usd'] 
                 if abs(api_balance - self.current_balance) > 0.01:
                     logger.info(f"Balance updated from API: {self.current_balance} -> {api_balance}")
                     self.current_balance = api_balance
