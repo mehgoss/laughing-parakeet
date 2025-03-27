@@ -24,6 +24,36 @@ logger = configure_logging(TOKEN, CHAT_ID)
 utc_now = datetime.utcnow()
 sast = pytz.timezone('Africa/Johannesburg')
 sast_now = utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+import yfinance as yf
+from datetime import datetime
+
+def btc_to_usd(btc_amount, fallback_price=80000):
+    """
+    Convert a BTC amount to USD using the current BTC/USD price from yfinance.
+
+    :param btc_amount: Amount in BTC (e.g., 0.00999386)
+    :param fallback_price: Fallback BTC/USD price in case yfinance fails (default: 80000 USD/BTC)
+    :return: USD amount (float)
+    """
+    try:
+        # Fetch current BTC/USD price from yfinance
+        btc_ticker = yf.Ticker("BTC-USD")
+        btc_data = btc_ticker.history(period="1d")  # Get latest daily data
+        if not btc_data.empty:
+            btc_usd_price = btc_data['Close'].iloc[-1]  # Use the latest closing price
+        else:
+            btc_usd_price = fallback_price
+            print(f"Warning: Failed to fetch BTC/USD price from yfinance. Using fallback price: ${fallback_price}")
+
+        # Calculate USD amount
+        usd_amount = btc_amount * btc_usd_price
+        print(f"Converted {btc_amount:.8f} BTC to ${usd_amount:.2f} USD at ${btc_usd_price:.2f}/BTC")
+        return usd_amount
+
+    except Exception as e:
+        print(f"Error fetching BTC/USD price: {str(e)}. Using fallback price: ${fallback_price}")
+        usd_amount = btc_amount * fallback_price
+        return usd_amount
 
 
 class BitMEXTestAPI:
@@ -74,7 +104,7 @@ class BitMEXTestAPI:
 
             # Fetch current BTC/USD price for conversion
             btc_price_data = self.client.Trade.Trade_getBucketed(
-                symbol = self.symbol if '-' not in self.symbol else self.symbol.replace('-USD', 'USD'), 
+                symbol = "BTCUSD" , 
                 binSize="1m",
                 count=1,
                 reverse=True
@@ -99,7 +129,8 @@ class BitMEXTestAPI:
                     "available_margin": margin.get('availableMargin'),
                     "unrealized_pnl": margin.get('unrealisedPnl'),
                     "realized_pnl": margin.get('realisedPnl'), 
-                    "usd" : wallet_balance_usd
+                    "usd" : btc_to_usd(wallet_balance_btc), 
+                    "USD2" : wallet_balance_usd 
                 },
                 "positions": [{
                     "symbol": pos.get('symbol'),
