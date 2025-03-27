@@ -539,7 +539,7 @@ class SMC:
                 profile = self.api.get_profile_info()
                 api_balance = profile['balance']['usd'] 
                 if abs(api_balance - self.current_balance) > 0.01:
-                    logger.info(f"Balance updated from API: {self.current_balance} -> {api_balance}")
+                    logger.info(f"Balance updated from API: {self.current_balance:.2f} -> {api_balance:.2f}")
                     self.current_balance = api_balance
                     self.equity_curve.append(self.current_balance)
             except Exception as e:
