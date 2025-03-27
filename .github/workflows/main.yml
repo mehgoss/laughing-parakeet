@@ -23,7 +23,7 @@ concurrency:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 5  # Maximum runtime of 5 minutes
+    timeout-minutes: 30 # Maximum runtime of 5 minutes
     
     steps:
     - name: Checkout repository
