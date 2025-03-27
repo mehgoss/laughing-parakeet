@@ -35,7 +35,7 @@ def configure_main_logger():
     Configure the main logger with error handling.
     """
     try:
-        logger = configure_logging(TOKEN, CHAT_ID)
+        logger, telegram_bot = configure_logging(TOKEN, CHAT_ID)
         return logger
     except Exception as e:
         print(f"Failed to configure logging: {e}")
