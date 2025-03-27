@@ -22,10 +22,10 @@ class TelegramBot:
         self.chat_id = chat_id
         self._bot = None
         self._loop = asyncio.get_event_loop()
-        # Configure HTTP client with larger pool size and timeout
+        # We'll keep the client definition but won't pass it to Bot
         self._client = AsyncClient(
             limits=Limits(max_connections=100, max_keepalive_connections=20),
-            timeout=30.0  # Increase timeout to 30 seconds
+            timeout=30.0
         )
 
     async def _async_send_message(self, message=None):
@@ -33,7 +33,7 @@ class TelegramBot:
             if not self._bot:
                 if not self.token or "your_bot_token" in self.token:
                     raise ValueError("Invalid bot token.")
-                self._bot = Bot(token=self.token, http_client=self._client)  # Pass custom client
+                self._bot = Bot(token=self.token)  # Removed http_client parameter
             
             if message is None:
                 current_time = get_sast_time()
@@ -69,10 +69,8 @@ class TelegramBot:
         """Synchronous wrapper for sending text messages"""
         try:
             if self._loop.is_running():
-                # If we're already in an event loop, create a task
                 asyncio.ensure_future(self._async_send_message(message))
             else:
-                # If no event loop is running, use run
                 asyncio.run(self._async_send_message(message))
         except Exception as e:
             logger.error(f"Error in send_message: {e}")
@@ -106,10 +104,10 @@ class CustomLoggingHandler(logging.Handler):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
-        self._emitting = False  # Flag to prevent recursive calls
+        self._emitting = False
 
     def emit(self, record):
-        if self._emitting:  # Prevent recursive logging
+        if self._emitting:
             return
         try:
             self._emitting = True
@@ -122,7 +120,7 @@ class CustomLoggingHandler(logging.Handler):
 
 def configure_logging(bot_token, chat_id):
     logger = logging.getLogger(__name__)
-    if not logger.handlers:  # Only configure if not already configured
+    if not logger.handlers:
         logger.setLevel(logging.INFO)
         
         bot = TelegramBot(bot_token, chat_id)
