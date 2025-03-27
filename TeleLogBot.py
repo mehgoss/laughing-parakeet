@@ -6,6 +6,7 @@ import pytz
 import time
 from datetime import datetime
 from telegram import Bot
+from telegram.request import HTTPXRequest
 from telegram.error import TelegramError
 from httpx import AsyncClient, Limits
 
@@ -34,7 +35,8 @@ class TelegramBot:
             if not self._bot:
                 if not self.token or "your_bot_token" in self.token:
                     raise ValueError("Invalid bot token.")
-                self._bot = Bot(token=self.token)  # Removed http_client parameter
+                trequest = HTTPXRequest(connection_pool_size=20)
+                self._bot = Bot(token=self.token, request=trequest)  # Removed http_client parameter
             
             if message is None:
                 current_time = get_sast_time()
