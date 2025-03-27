@@ -224,7 +224,7 @@ class SMC:
                         df.loc[df.index[i], 'bearish_fvg_low'] = fvg_low
                         df.loc[df.index[i], 'bearish_fvg_high'] = fvg_high
                         df.loc[df.index[i], 'bearish_fvg_sl_index'] = i
-                        print(f"Bearish FVG detected at index {i}, range: {fvg_low}-{fsql_high}")
+                        print(f"Bearish FVG detected at index {i}, range: {fvg_low}-{fvg_high}")
         return df
 
     def check_fvg_mitigation(self, current_idx):
