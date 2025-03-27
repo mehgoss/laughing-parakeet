@@ -3,6 +3,7 @@ import logging
 import sys
 from io import BytesIO
 import pytz
+import time
 from datetime import datetime
 from telegram import Bot
 from telegram.error import TelegramError
@@ -113,6 +114,7 @@ class CustomLoggingHandler(logging.Handler):
             self._emitting = True
             log_message = self.format(record)
             self.bot.send_message(log_message)
+            time.sleep(1.5)
         except Exception as e:
             print(f"Error in custom logging handler: {e}", file=sys.stderr)
         finally:
