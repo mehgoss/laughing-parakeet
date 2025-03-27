@@ -632,7 +632,7 @@ if __name__ == "__main__":
         api_key=API_KEY,
         api_secret=API_SECRET,
         test=True,
-        symbol="SOL-USD",
+        symbol="BTC-USD",
         timeframe="5m",
         risk_per_trade=0.02
     )
