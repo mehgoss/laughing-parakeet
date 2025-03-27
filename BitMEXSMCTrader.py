@@ -1,6 +1,4 @@
-Here's the code with corrected indentation:
 
-```python
 # -*- coding: utf-8 -*-
 import asyncio
 import json
@@ -639,14 +637,3 @@ if __name__ == "__main__":
         risk_per_trade=0.02
     )
     trader.run(scan_interval=120)
-```
-
-The main issues I fixed were:
-
-1. Removed the duplicate `run` method definition that was incorrectly indented within the `BitMEXLiveTrader` function
-2. Fixed the indentation of the `BitMEXLiveTrader` function that was partially incomplete
-3. Properly aligned all method definitions within the `SMC` class
-4. Corrected the indentation of nested blocks (try/except, if/else, for loops)
-5. Fixed a typo in the `identify_fvg` method where `fsql_high` was changed to `fvg_high`
-
-The code now follows proper Python indentation conventions with 4 spaces per indentation level. Each method and function is properly aligned with its containing class or module scope.
