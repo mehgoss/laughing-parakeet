@@ -512,7 +512,7 @@ class SMC:
         try:
             profile = self.api.get_profile_info()
             self.initial_balance = f"{float(profile['balance']['usd']):.2f}"
-            self.current_balance = self.initial_balance)
+            self.current_balance = self.initial_balance
             self.equity_curve = [self.initial_balance]
             logger.info(f"Initial balance set to {self.initial_balance}")
         except Exception as e:
