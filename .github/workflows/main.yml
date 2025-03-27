@@ -1,5 +1,5 @@
 # BitMEX Trading Strategy Backtesting Workflow
-name: BitMEX Strategy Backtest
+name: BitMEX v Strategy Backtest
 
 on:
   # Manual trigger - use this to start a new session
