@@ -150,7 +150,7 @@ class BitMEXTestAPI:
             logger.info(f"Account: {profile_info['user']['username']}")
             print(f"Account: {profile_info['user']['username']}")
 
-            logger.info(f"Wallet Balance: {wallet_balance_btc:.8f} BTC ({wallet_balance_usd:.2f} USD)")
+            logger.info(f"Wallet Balance: {wallet_balance_btc:.8f} BTC ({btc_to_usd(wallet_balance_btc):.2f} USD)")
             print(f"Wallet Balance: {wallet_balance_btc:.8f} BTC ({wallet_balance_usd:.2f} USD)")
 
             logger.info(f"Available Margin: {profile_info['balance']['available_margin'] / 100000000:.8f} BTC")
