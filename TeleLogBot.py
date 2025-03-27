@@ -14,6 +14,8 @@ def get_sast_time():
     utc_now = datetime.utcnow()
     sast = pytz.timezone('Africa/Johannesburg')
     return utc_now.replace(tzinfo=pytz.utc).astimezone(sast)
+from telegram import Bot
+from httpx import AsyncClient, Limits
 
 class TelegramBot:
     def __init__(self, token, chat_id):
@@ -21,15 +23,20 @@ class TelegramBot:
         self.chat_id = chat_id
         self._bot = None
         self._loop = asyncio.get_event_loop()
+        # Configure HTTP client with larger pool size and timeout
+        self._client = AsyncClient(
+            limits=Limits(max_connections=100, max_keepalive_connections=20),
+            timeout=30.0  # Increase timeout to 30 seconds
+        )
 
     async def _async_send_message(self, message=None):
         try:
             if not self._bot:
                 if not self.token or "your_bot_token" in self.token:
-                    raise ValueError("Invalid bot token. Please provide a valid token from @BotFather")
-                self._bot = Bot(token=self.token)
-
-            if message is None:
+                    raise ValueError("Invalid bot token.")
+                self._bot = Bot(token=self.token, http_client=self._client)  # Pass custom client
+     
+                if message is None:
                 current_time = get_sast_time()
                 message = f"{current_time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - This is a test message"
 
