@@ -27,7 +27,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-logger = configure_logging(TOKEN, CHAT_ID)
+logger, telegram_bot = configure_logging(TOKEN, CHAT_ID)
 
 def get_sast_time():
     utc_now = datetime.utcnow()
@@ -36,7 +36,7 @@ def get_sast_time():
 
 class SMC:
     def __init__(self, api_key="", api_secret="", test=True, symbol="SOL-USD",
-                 timeframe="15m", risk_per_trade=0.02, lookback_periods=100):
+                 timeframe="15m", risk_per_trade=0.02, lookback_periods=100, telegram_bot=None):
         """
         Initialize the SMC trading class
         """
@@ -47,6 +47,8 @@ class SMC:
         self.timeframe = timeframe
         self.risk_per_trade = risk_per_trade
         self.lookback_periods = lookback_periods
+        self.telegram_bot = telegram_bot  # Add TelegramBot instance
+
 
         # Initialize BitMEX API client
         self.api = BitMEXTestAPI(
@@ -585,12 +587,105 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
 
     try:
         
+
+def run(self, scan_interval=120):
+        """
+        Main loop for live trading with the SMC strategy.
+        Runs for approximately 3 minutes: 2 scans with a 2-minute sleep between.
+        Returns: (signal_found: bool, price_data: pd.DataFrame)
+        """
+        sast_now = get_sast_time()
+        logger.info(f"Starting BitMEXLiveTrader at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Starting BitMEXLiveTrader at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+
+        try:
+            profile = self.api.get_profile_info()
+            self.initial_balance = float(profile['balance']['usd'])
+            self.current_balance = self.initial_balance
+            self.equity_curve = [self.initial_balance]
+            logger.info(f"Initial balance set to {self.initial_balance:.2f}")
+        except Exception as e:
+            logger.error(f"Failed to initialize balance: {str(e)}")
+            return False, pd.DataFrame()
+
+        signal_found = False
+        for iteration in range(2):
+            sast_now = get_sast_time()
+            logger.info(f"Scan {iteration + 1}/2 started at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Scan {iteration + 1}/2 started at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}")
+
+            self.get_market_data()
+            if self.df.empty or len(self.df) < 16:
+                logger.warning(f"Insufficient data: {len(self.df)} candles retrieved")
+                if iteration < 1:
+                    time.sleep(scan_interval)
+                continue
+
+            self.identify_structure()
+            self.identify_fvg()
+            trades, equity_curve = self.execute_trades()
+
+            # Check if a trade was entered (signal found)
+            if trades and self.in_trade:
+                signal_found = True
+                logger.info("Trading signal detected and trade executed")
+
+            try:
+                profile = self.api.get_profile_info()
+                api_balance = profile['balance']['usd']
+                if abs(api_balance - self.current_balance) > 0.01:
+                    logger.info(f"Balance updated from API: {self.current_balance:.2f} -> {api_balance:.2f}")
+                    self.current_balance = api_balance
+                    self.equity_curve.append(self.current_balance)
+            except Exception as e:
+                logger.warning(f"Failed to sync balance with API: {str(e)}")
+
+            performance = self.calculate_performance()
+            logger.info(f"Performance snapshot: {performance}")
+
+            # If no signal found in this iteration and data is available, send analysis
+            if not signal_found and not self.df.empty and self.telegram_bot:
+                try:
+                    lookback_candles = 16 if self.timeframe == "15m" else 48 if self.timeframe == "5m" else 4
+                    fig, fig2 = self.visualize_results(start_idx=max(0, len(self.df) - lookback_candles))
+                    
+                    # Send the price chart via Telegram
+                    caption = f"No signals found - Scan {iteration+1} at {sast_now.strftime('%Y-%m-%d %H:%M:%S')}"
+                    self.telegram_bot.send_photo(fig=fig, caption=caption)
+                    logger.info(f"Sent no-signal analysis plot for scan {iteration+1}")
+
+                    plt.close(fig)
+                    plt.close(fig2)
+                except Exception as e:
+                    logger.error(f"Failed to generate or send no-signal analysis: {str(e)}")
+
+            if iteration < 1:
+                logger.info(f"Waiting {scan_interval} seconds for next scan...")
+                print(f"Waiting {scan_interval} seconds for next scan...")
+                time.sleep(scan_interval)
+
+        logger.info("Completed 2 scans, stopping BitMEXLiveTrader")
+        if self.in_trade:
+            try:
+                self.api.close_all_positions()
+                logger.info("All open positions closed")
+            except Exception as e:
+                logger.error(f"Failed to close positions on exit: {str(e)}")
+        final_performance = self.calculate_performance()
+        logger.info(f"Final performance metrics: {final_performance}")
+
+        return signal_found, self.df
+
+def BitMEXLiveTrader(API_KEY, API_SECRET):
+    """
+    Main function to run the BitMEXLiveTrader
+    """
+    try:
         print("Current time in SAST:", get_sast_time().strftime('%Y-%m-%d %H:%M:%S'))
-        # Example log calls
         logger.info("BitmexSMCLiveTrader version 0.1 ")
         logger.info(f"Current time in SAST: {get_sast_time().strftime('%Y-%m-%d %H:%M:%S')}")
-        # Initialize and run BitMEXLiveTrader
-        api= BitMEXTestAPI(
+        
+        api = BitMEXTestAPI(
             api_key=API_KEY,
             api_secret=API_SECRET,
             test=True
@@ -598,13 +693,13 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
         trader = SMC(
             api_key=API_KEY,
             api_secret=API_SECRET,
-            test=True,  # Use testnet
-            symbol="SOLUSD",  # Solana/USD
-            timeframe="5m",  # 5m candles
-            risk_per_trade=0.02  # 2% risk per trade
-            )
-         
-        #api.run_test_sequence()
+            test=True,
+            symbol="SOLUSD",
+            timeframe="5m",
+            risk_per_trade=0.02,
+            telegram_bot=telegram_bot  # Pass the TelegramBot instance
+        )
+        
         logger.info("Welcome to BitmexSMCLiveTrader version 0.1🥺🥺\n - Bitmax Api Looks good to go👍👍👍\n -Start Trading with Smart Money Concept Strategy🤲")
         
         return trader, api
