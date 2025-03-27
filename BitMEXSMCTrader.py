@@ -593,7 +593,7 @@ def BitMEXLiveTrader(API_KEY, API_SECRET):
         api= BitMEXTestAPI(
             api_key=API_KEY,
             api_secret=API_SECRET,
-            test=self.test
+            test=True
         )
         trader = SMC(
             api_key=API_KEY,
