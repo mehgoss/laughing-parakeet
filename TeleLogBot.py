@@ -123,10 +123,11 @@ class CustomLoggingHandler(logging.Handler):
             self._emitting = False
 def configure_logging(bot_token, chat_id):
     logger = logging.getLogger(__name__)
+    bot = TelegramBot(bot_token, chat_id)  # Define bot outside the if block
+    
     if not logger.handlers:
         logger.setLevel(logging.INFO)
         
-        bot = TelegramBot(bot_token, chat_id)
         custom_handler = CustomLoggingHandler(bot)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         custom_handler.setFormatter(formatter)
@@ -137,4 +138,4 @@ def configure_logging(bot_token, chat_id):
         logger.addHandler(custom_handler)
         logger.addHandler(stream_handler)
     
-    return logger, bot  # Return both logger and bot instance
+    return logger, bot  # Now bot is always defined
